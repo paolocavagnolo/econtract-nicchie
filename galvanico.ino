@@ -11,16 +11,17 @@ FastAccelStepper *mot = NULL;
 FastAccelStepper *top = NULL;
 
 void setup() {
-	delay(1000);
-	
-	Serial.begin(9600);
-	delay(100);
+  delay(1000);
+  
+  Serial.begin(9600);
+  delay(100);
 
-	pinMode(SENS_PIN, INPUT_PULLUP);
+  pinMode(SENS_PIN, INPUT_PULLUP);
+  bolleOff();
   pinMode(RELAY, OUTPUT);
-	delay(100);
+  delay(100);
 
-	engine.init();
+  engine.init();
   mot = engine.stepperConnectToPin(MOT_PULSE);
 
   if (mot) {
@@ -46,31 +47,54 @@ bool loop_pressa = false;
 
 bool fine_corsa = false;
 long target_pos = 70000;
+long bolle_pos = 55000;
+int attesa = 5000;
 
 unsigned long tDebug = 0;
+unsigned long tAttesa = 0;
 
 void loop() {
 
-	check_BTN1();
+  check_BTN1();
 
   if (loop_pressa) {
 
     if (!mot->isRunning()) {
+
+      // SE MOTORE IN BASSO - TORNA SU
       if (mot->getCurrentPosition() == target_pos) {
-        mot->moveTo(100);
-        digitalWrite(RELAY, HIGH);
-        delay(2000);
-        digitalWrite(RELAY, LOW);
+        if ((millis() - tAttesa) > (attesa + 5000)) {
+          mot->moveTo(100);
+        }
       }
 
+      // SE MOTORE SU - VAI IN BASSO
       if (mot->getCurrentPosition() == 100) {
         mot->moveTo(target_pos);
+        tAttesa = millis();
+      }
+
+    }
+    else {
+
+      if (mot->getCurrentPosition() > bolle_pos) {
+        bolleOn();
+      } else {
+        bolleOff();
       }
 
     }
 
-  }	
+  } 
 
+}
+
+void bolleOn() {
+  digitalWrite(RELAY,HIGH);
+}
+
+void bolleOff() {
+  digitalWrite(RELAY,LOW);
 }
 
 
@@ -93,12 +117,14 @@ void check_BTN1() {
             Serial.println("INIZIO LOOP");
             loop_pressa = true;
             mot->moveTo(target_pos);
+            bolleOff();
           } else {
             loop_pressa = false;
             Serial.println("FINE LOOP");
             mot->stopMove();
             while (mot->isRunning()) {}
             mot->moveTo(0);
+            bolleOff();
           }
     
         }
