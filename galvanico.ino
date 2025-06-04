@@ -52,6 +52,7 @@ int attesa = 5000;
 
 unsigned long tDebug = 0;
 unsigned long tAttesa = 0;
+unsigned long tCheck = 0;
 
 int loop_counter = 0;
 
@@ -61,40 +62,34 @@ void loop() {
 
   if (loop_pressa) {
 
-    if (!mot->isRunning()) {
+    if ((millis() - tCheck) > 50) {
+      tCheck = millis();
 
-      // SE MOTORE IN BASSO - TORNA SU
-      if (mot->getCurrentPosition() == target_pos) {
-        if ((millis() - tAttesa) > (attesa + 5000)) {
-          mot->moveTo(100);
-          
+      if (!mot->isRunning()) {
+
+        // SE MOTORE IN BASSO - TORNA SU
+        if (mot->getCurrentPosition() == target_pos) {
+            delay(5000);
+            mot->moveTo(100);    
         }
+
+        // SE MOTORE SU - VAI IN BASSO
+        if (mot->getCurrentPosition() == 100) {
+          delay(1000);
+          mot->moveTo(target_pos);
+        }
+
+      }
+      else {
+
+        if (mot->getCurrentPosition() > bolle_pos) {
+          bolleOn();
+        } else {
+          bolleOff();
+        }
+
       }
 
-      // SE MOTORE SU - VAI IN BASSO
-      if (mot->getCurrentPosition() == 100) {
-        loop_counter++;
-        mot->moveTo(target_pos);
-        tAttesa = millis();
-      }
-
-    }
-    else {
-
-      if (mot->getCurrentPosition() > bolle_pos) {
-        bolleOn();
-      } else {
-        bolleOff();
-      }
-
-    }
-
-    if (loop_counter > 2) {
-      loop_pressa = false;
-      mot->stopMove();
-      while (mot->isRunning()) {}
-      mot->moveTo(0);
-      bolleOff();
     }
 
   } 
