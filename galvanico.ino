@@ -53,6 +53,8 @@ int attesa = 5000;
 unsigned long tDebug = 0;
 unsigned long tAttesa = 0;
 
+int loop_counter = 0;
+
 void loop() {
 
   check_BTN1();
@@ -65,11 +67,13 @@ void loop() {
       if (mot->getCurrentPosition() == target_pos) {
         if ((millis() - tAttesa) > (attesa + 5000)) {
           mot->moveTo(100);
+          
         }
       }
 
       // SE MOTORE SU - VAI IN BASSO
       if (mot->getCurrentPosition() == 100) {
+        loop_counter++;
         mot->moveTo(target_pos);
         tAttesa = millis();
       }
@@ -83,6 +87,14 @@ void loop() {
         bolleOff();
       }
 
+    }
+
+    if (loop_counter > 2) {
+      loop_pressa = false;
+      mot->stopMove();
+      while (mot->isRunning()) {}
+      mot->moveTo(0);
+      bolleOff();
     }
 
   } 
@@ -118,6 +130,7 @@ void check_BTN1() {
             loop_pressa = true;
             mot->moveTo(target_pos);
             bolleOff();
+            loop_counter = 0;
           } else {
             loop_pressa = false;
             Serial.println("FINE LOOP");
