@@ -1,0 +1,11 @@
+# Ignore all file having .ign as extension
+
+__pycache__/
+*.ign
+*.pem
+venv/
+.venv/
+MagicQ/
+.DS_Store/
+.localized/
+ShareX/
