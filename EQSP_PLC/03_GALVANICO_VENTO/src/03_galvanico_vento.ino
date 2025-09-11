@@ -396,8 +396,8 @@ void logica_V() {
 
       sVento = !sVento;
 
-      if (sVento) wVento = random(800,2400); // tempo spente
-      else wVento = 400; // tempo accese
+      if (sVento) wVento = random(1600,3200); // tempo spente
+      else wVento = 600; // tempo accese
     }
 
   } else if (STATE_V == 2) {

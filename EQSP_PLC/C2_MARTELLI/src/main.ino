@@ -24,6 +24,8 @@
 #define RS485_RO    17 
 #define RS485_EN    35
 
+HardwareSerial RS485(2);
+
 #define LED_RED     38
 #define LED_BLUE    37 //INPUT: OFF / OUTPUT_LOW: ON_BT / OUTPUT_HIGH: ON_WIFI
 
@@ -80,6 +82,8 @@ void setup() {
   pinMode(ADIO7, INPUT);  // FINE CORSA M3
 
   // RS485
+  RS485.begin(9600, SERIAL_8N1, RS485_DI, RS485_RO);
+  delay(100);
   pinMode(RS485_EN,OUTPUT);
   digitalWrite(RS485_EN,HIGH);
 
@@ -87,7 +91,6 @@ void setup() {
   pinMode(DIO11, OUTPUT);
   pinMode(DIO14, OUTPUT);
   pinMode(ADIO8, OUTPUT);
-  disableMotor();
 
   engine.init();
 
@@ -153,217 +156,21 @@ void setup() {
 
 }
 
-unsigned long t_MAN = 0, tS_MAN = 0;
-bool s_MAN = false, p_MAN = true, f_MAN = false;
-unsigned long t_AUTO = 0, tS_AUTO = 0;
-bool s_AUTO = false, p_AUTO = true, f_AUTO = false;
-bool f_REM = false;
-unsigned long t_FWD = 0, tS_FWD = 0;
-bool s_FWD = false, p_FWD = true, f_FWD_GO = false, f_FWD_STOP = false;
-unsigned long t_BWD = 0, tS_BWD = 0;
-bool s_BWD = false, p_BWD = true, f_BWD_GO = false, f_BWD_STOP = false;
-
-bool HOMED = false;
-
-unsigned long T = 0;
-bool P = true;
-bool manState = true;
-unsigned long manWait = 0;
-
 void loop() {
 
-  check_MAN();
-  check_AUTO();
-  check_FWD();
-  check_BWD();
 
-  check_STATE();
-
-  logica();
+  relay_write(1,5,true);
+  delay(1000);
+  relay_write(1,5,false);
+  delay(1000);
 
 }
 
-#define NUM_BOBINE 24
-bool s_B[NUM_BOBINE]{false};
-unsigned long t_B[NUM_BOBINE]{0};
-unsigned long w_B[NUM_BOBINE]{0};
-bool f_B[NUM_BOBINE]{false};
-
-void logica() {
-  if (STATE == 0) {
-    // REMOTO - IDLEb
-    delay(50);
-
-  } else if (STATE == 1) {
-    // AUTO
-
-    // BOBINE
-    for (uint8_t i=0; i<NUM_BOBINE; i++) {
-      if (!s_B[i]) {
-        if ((millis() - t_B[i]) > w_B[i]) {
-          t_B[i] = millis();
-          s_B[i] = true;
-          w_B[i] = random(2000,10000); // TEMPO ACCESO
-          relay_write(i,true);
-        }
-      } else {
-        if ((millis() - t_B[i]) > w_B[i]) {
-          t_B[i] = millis();
-          s_B[i] = false;
-          w_B[i] = random(5000,30000); // TEMPO SPENTO
-          relay_write(i,false);
-        }
-      }
-    }
-
-    // TIRA_PELLE
-    if (!M1->isRunning()) {
-
-      if (M1->getCurrentPosition() == CORSA_M1) {
-        M1->moveTo(0);
-      }
-
-      if (M1->getCurrentPosition() == 0) {
-        M1->moveTo(CORSA_M1);
-      }
-
-    }
-
-    if (!M2->isRunning()) {
-
-      if (M2->getCurrentPosition() == CORSA_M2) {
-        M2->moveTo(0);
-      }
-
-      if (M2->getCurrentPosition() == 0) {
-        M2->moveTo(CORSA_M2);
-      }
-
-    }
-
-  } else if (STATE == 2) {
-    // MAN
-
-    // BOBINE
-    if ((millis() - T) > manWait) {
-      T = millis();
-
-      relay_write(0xFF, manState);
-      manState = !manState;
-
-      if (manState) {
-        manWait = 5000;
-      } else {
-        manWait = 2000;
-      }
-
-    }
-
-    // TIRAPELLE
-    if (f_FWD_GO) {
-      f_FWD_GO = false;
-      
-      M1->runForward();
-      M2->runForward();
-    }
-
-    if (f_FWD_STOP) {
-      f_FWD_STOP = false;
-
-      M1->stopMove();
-      M2->stopMove();
-    }
-
-    if (f_BWD_GO) {
-      f_BWD_GO = false;
-
-      M1->runBackward();
-      M2->runBackward();
-    }
-
-    if (f_BWD_STOP) {
-      f_BWD_STOP = false;
-
-      M1->stopMove();
-      M2->stopMove();
-    }  
-
-  }
-}
-
-void check_STATE() {
-
-  if (f_MAN) {
-
-    f_MAN = false;
-    STATE = 2;
-    relay_write(0xFF,true);
-    manState = true;
-    manWait = 5000;
-
-    enableMotor();
-
-    M1->setSpeedInHz(MAN_SPEED);  
-    M1->setAcceleration(MAN_ACC);
-    M1->applySpeedAcceleration();
-
-    M2->setSpeedInHz(MAN_SPEED);  
-    M2->setAcceleration(MAN_ACC);
-    M2->applySpeedAcceleration();
-
-  } else if (f_AUTO) {
-
-    f_AUTO = false;
-    STATE = 1;
-    relay_write(0xFF,false);
-
-    for (uint8_t i=0; i<NUM_BOBINE; i++) {
-      s_B[i] = false;
-      w_B[i] = random(15000); // TEMPO SPENTO
-      t_B[i] = millis();
-    }
-
-    if (!HOMED) {
-      goToHome();
-    }
-
-    if ((M1->isRunning()) || (M2->isRunning())) {
-      M1->stopMove();
-      M2->stopMove();
-
-      while ((M1->isRunning()) || (M2->isRunning())) {}
-    }
-
-    enableMotor();
-
-    Serial.println("INIZIO LOOP");
-
-    M1->setSpeedInHz(M1_SPEED); 
-    M1->setAcceleration(M1_ACC);
-    M1->applySpeedAcceleration();
-
-    M2->setSpeedInHz(M2_SPEED); 
-    M2->setAcceleration(M2_ACC);
-    M2->applySpeedAcceleration();
-
-
-  } else if (f_REM) {
-
-    f_REM = false;
-    STATE = 0;
-    relay_write(0xFF,false);
-
-    goToHome();
-
-  }
-
-}
-
-void relay_write(uint8_t id_relay, bool stato_relay) {
+void relay_write(uint8_t id_device, uint8_t id_relay, bool stato_relay) {
 
   unsigned char cmd[8]; 
 
-  cmd[0] = 0x01;      // DEVICE ADDRESS: 0x00 BROADCAST
+  cmd[0] = id_device;      // DEVICE ADDRESS: 0x00 BROADCAST
   cmd[1] = 0x05;      // COMMAND: 0x01: READ COIL 0x03: READ ADDRESS 0x05 WRITE COIL 0x06 SET BAUDRATE AND ADRESS 0x0F WRITE MULTIPLE
   cmd[2] = 0x00;      // RELAY ADDRESS MSB:
   cmd[3] = id_relay;  // RELAY ADDRESS LSB:
@@ -383,252 +190,31 @@ void relay_write(uint8_t id_relay, bool stato_relay) {
   
   // SEND IT
   for (uint8_t i=0; i<8; i++) {
-    Serial2.write(cmd[i]);
+    RS485.write(cmd[i]);
   }
 
 }
 
-void check_MAN() {
-  if (!s_MAN) {
-    if ((millis() - t_MAN) > 200) {
-      if (!digitalRead(ADIO2)) {
-        if (p_MAN) {
-          p_MAN = false;
-          tS_MAN = millis();
-        }
-        if ((millis() - tS_MAN) > 200) {
-          t_MAN = millis();
-          s_MAN = true;
-          
-          // PREMUTO DOPO 200 ms 
-          Serial.println("PUSHED BTN_MAN");
+void set_address(uint8_t new_address) {
 
-          ledcWriteTone(0, 1000);
-          delay(50);
-          ledcWriteTone(0, 0);
-          f_MAN = true;
+  unsigned char cmd[8]; 
 
-        }
-      } else {
-        tS_MAN = millis();
-      }
-    }
-  } else {
-    if ((millis() - t_MAN) > 200) {
-      if (digitalRead(ADIO2)) {
-        t_MAN = millis();
-        s_MAN = false;
-        p_MAN = true;
+  cmd[0] = 0x01;      // DEVICE ADDRESS: 0x00 BROADCAST
+  cmd[1] = 0x06;      // COMMAND: 0x01: READ COIL 0x03: READ ADDRESS 0x05 WRITE COIL 0x06 SET BAUDRATE AND ADRESS 0x0F WRITE MULTIPLE
+  
+  cmd[2] = 0x40;      // DEVICE ADDRESS REGISTER
+  cmd[3] = 0x00;      
 
-        // RILASCIATO DOPO 200 ms
-        Serial.println("RELEASED BTN_MAN");
-        f_REM = true;
-        
-      }
-    }
-  }
-}
+  cmd[4] = 0x00;
+  cmd[5] = new_address;
 
-void check_AUTO() {
-  if (!s_AUTO) {
-    if ((millis() - t_AUTO) > 200) {
-      if (!digitalRead(ADIO1)) {
-        if (p_AUTO) {
-          p_AUTO = false;
-          tS_AUTO = millis();
-        }
-        if ((millis() - tS_AUTO) > 200) {
-          t_AUTO = millis();
-          s_AUTO = true;
-          
-          // PREMUTO DOPO 200 ms 
-          Serial.println("PUSHED BTN_AUTO");
-
-          ledcWriteTone(0, 1000);
-          delay(50);
-          ledcWriteTone(0, 0);
-          f_AUTO = true;
-        }
-      } else {
-        tS_AUTO = millis();
-      }
-    }
-  } else {
-    if ((millis() - t_AUTO) > 200) {
-      if (digitalRead(ADIO1)) {
-        t_AUTO = millis();
-        s_AUTO = false;
-        p_AUTO = true;
-
-        // RILASCIATO DOPO 200 ms
-        Serial.println("RELEASED BTN_AUTO");
-        f_REM = true;
-      }
-    }
-  }
-}
-
-void check_FWD() {
-  if (!s_FWD) {
-    if ((millis() - t_FWD) > 200) {
-      if (!digitalRead(ADIO4)) {
-        if (p_FWD) {
-          p_FWD = false;
-          tS_FWD = millis();
-        }
-        if ((millis() - tS_FWD) > 200) {
-          t_FWD = millis();
-          s_FWD = true;
-          
-          // PREMUTO DOPO 200 ms 
-          Serial.println("PUSHED BTN_FWD");
-
-          ledcWriteTone(0, 1000);
-          delay(50);
-          ledcWriteTone(0, 0);
-
-          f_FWD_GO = true;
-        }
-      } else {
-        tS_FWD = millis();
-      }
-    }
-  } else {
-    if ((millis() - t_FWD) > 200) {
-      if (digitalRead(ADIO4)) {
-        t_FWD = millis();
-        s_FWD = false;
-        p_FWD = true;
-
-        // RILASCIATO DOPO 200 ms
-        Serial.println("RELEASED BTN_FWD");
-        f_FWD_STOP = true;
-        
-      }
-    }
-  }
-}
-
-void check_BWD() {
-  if (!s_BWD) {
-    if ((millis() - t_BWD) > 200) {
-      if (!digitalRead(ADIO5)) {
-        if (p_BWD) {
-          p_BWD = false;
-          tS_BWD = millis();
-        }
-        if ((millis() - tS_BWD) > 200) {
-          t_BWD = millis();
-          s_BWD = true;
-          
-          // PREMUTO DOPO 200 ms 
-          Serial.println("PUSHED BTN_BWD");
-          ledcWriteTone(0, 1000);
-          delay(50);
-          ledcWriteTone(0, 0);
-
-          f_BWD_GO = true;
-
-        }
-      } else {
-        tS_BWD = millis();
-      }
-    }
-  } else {
-    if ((millis() - t_BWD) > 200) {
-      if (digitalRead(ADIO5)) {
-        t_BWD = millis();
-        s_BWD = false;
-        p_BWD = true;
-
-        // RILASCIATO DOPO 200 ms
-        Serial.println("RELEASED BTN_BWD");
-
-        f_BWD_STOP = true;
-        
-      }
-    }
-  }
-}
-
-void goToHome() {
-
-  if ((M1->isRunning()) || (M2->isRunning()) || (M3->isRunning())) {
-    M1->stopMove();
-    M2->stopMove();
-    M3->stopMove();
-    while ((M1->isRunning()) || (M2->isRunning()) || (M3->isRunning())) {}
-  } else {
-    enableMotor();
+  uint16_t crc = ModbusCRC((unsigned char  *)cmd,6);
+  cmd[6] = crc & 0xFF;
+  cmd[7] = crc >> 8;
+  
+  // SEND IT
+  for (uint8_t i=0; i<8; i++) {
+    RS485.write(cmd[i]);
   }
 
-  bool exit_flag_m1 = false;
-  bool exit_flag_m2 = false;
-  bool exit_flag_m3 = false;
-
-  M1->setSpeedInHz(MAN_SPEED);  
-  M1->setAcceleration(MAN_ACC);
-  M1->applySpeedAcceleration();
-
-  M2->setSpeedInHz(MAN_SPEED);  
-  M2->setAcceleration(MAN_ACC);
-  M2->applySpeedAcceleration();
-
-  M3->setSpeedInHz(MAN_SPEED);  
-  M3->setAcceleration(MAN_ACC);
-  M3->applySpeedAcceleration();
-
-  M1->runBackward();
-  M2->runBackward();
-  M3->runBackward();
-
-  while ((!exit_flag_m1) || (!exit_flag_m2) || (!exit_flag_m3)) {
-
-    if (digitalRead(ADIO5)) {
-      M1->forceStop();
-      exit_flag_m1 = true;
-    }
-
-    if (digitalRead(ADIO6)) {
-      M2->forceStop();
-      exit_flag_m2 = true;
-    }
-
-    if (digitalRead(ADIO7)) {
-      M3->forceStop();
-      exit_flag_m3 = true;
-    }
-
-  }
-
-  delay(100);
-
-  M1->move(ZERO_OFFSET);
-  M2->move(ZERO_OFFSET);
-  M3->move(ZERO_OFFSET);
-
-  while ((M1->isRunning()) || (M2->isRunning()) || (M3->isRunning())) {}
-
-  M1->setCurrentPosition(0);
-  M2->setCurrentPosition(0);
-  M3->setCurrentPosition(0);
-
-  disableMotor();
-
-  HOMED = true;
-
-}
-
-void disableMotor() {
-  delay(10);  // DA TESTARE
-  digitalWrite(DIO11, HIGH);
-  digitalWrite(DIO14, HIGH);
-  digitalWrite(ADIO8, HIGH);
-}
-
-void enableMotor() {
-  digitalWrite(DIO11, LOW);
-  digitalWrite(DIO14, LOW);
-  digitalWrite(ADIO8, LOW);
-  delay(10);  // DA TESTARE
 }

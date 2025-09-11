@@ -30,7 +30,7 @@ FastAccelStepper *mot_D = NULL;
 FastAccelStepper *mot_E = NULL;
 
 #define MOT_SPEED 8000
-#define MOT_ACC 10000
+#define MOT_ACC 16000
 
 void setup() {
 	delay(1000);
@@ -90,7 +90,7 @@ void setup() {
 
 }
 
-#define OFFSET_A -2000
+#define OFFSET_A -1000
 #define OFFSET_B 0
 #define OFFSET_C 0
 #define OFFSET_D -800
@@ -98,7 +98,7 @@ void setup() {
 
 #define TIME_OFFSET 1600
 
-long CORSA = 400;
+long CORSA = 300;
 
 bool go_A = false, go_B = false, go_C = false, go_D = false, go_E = false;
 

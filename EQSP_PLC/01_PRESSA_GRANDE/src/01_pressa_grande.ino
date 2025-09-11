@@ -53,7 +53,7 @@
 
 #define ZERO_OFFSET 1000
 
-#define TARGET_A 20000  // DOVE AVVIENE LO SPRINT
+#define TARGET_A 25000  // DOVE AVVIENE LO SPRINT
 #define TARGET_B 33000 
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();

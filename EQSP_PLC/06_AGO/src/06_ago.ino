@@ -36,20 +36,20 @@
 
 #include "FastAccelStepper.h"
 
-#define BASE_SPEED  200
-#define BASE_ACC    1000
+#define BASE_SPEED  40
+#define BASE_ACC    160
 
-#define TOP_SPEED  1000
+#define TOP_SPEED  500
 #define TOP_ACC    5000
 
-#define MAN_SPEED 300
+#define MAN_SPEED 500
 #define MAN_ACC 1000
 
-#define ZERO_OFFSET_BASE 50
-#define ZERO_OFFSET_TOP 50
+#define ZERO_OFFSET_BASE 5
+#define ZERO_OFFSET_TOP 5
 
-#define CORSA_BASE 500
-#define CORSA_TOP 500
+#define CORSA_BASE -150
+#define CORSA_TOP 1000
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *BASE = NULL;
@@ -175,18 +175,18 @@ void logica() {
   } else if (STATE == 1) {
     // AUTO
 
-    // if (!BASE->isRunning()) {
+    if (!BASE->isRunning()) {
 
-    //   if (BASE->getCurrentPosition() == CORSA_TOP / 2) {
-    //     BASE->moveTo(CORSA_TOP);
-    //   }
-    //   else if (BASE->getCurrentPosition() == CORSA_TOP) {
-    //     BASE->moveTo(0);
-    //   } else {
-    //     BASE->moveTo(CORSA_TOP);
-    //   }
+      if (BASE->getCurrentPosition() == CORSA_BASE / 2) {
+        BASE->moveTo(CORSA_BASE);
+      }
+      else if (BASE->getCurrentPosition() == CORSA_BASE) {
+        BASE->moveTo(0);
+      } else {
+        BASE->moveTo(CORSA_BASE);
+      }
 
-    // }
+    }
 
     if (!TOP->isRunning()) {
 
@@ -329,7 +329,12 @@ void check_STATE() {
 
       STATE = 0;
 
-      goToHome();
+      if (!HOMED) {
+        goToHome();
+      } else {
+        BASE->moveTo(0);
+        TOP->moveTo(0);
+      }
 
       disableMotor();
 
@@ -604,7 +609,7 @@ void goToHome() {
   TOP->setAcceleration(MAN_ACC);
   TOP->applySpeedAcceleration();
 
-  BASE->runBackward();
+  BASE->runForward();
 
   while (!exit_flag_base) {
 
