@@ -137,6 +137,8 @@ void setup() {
 
   delay(1000);
 
+  //spegni_tutti_relay();
+
 }
 
 // WAVESHARE RELAY:
@@ -157,7 +159,7 @@ uint8_t martello_scelto;
 uint8_t motore_scelto = 0, old_motore_scelto = 0;
 uint8_t canale_scelto = 0, old_canale_scelto = 0;
 
-uint8_t m_mov[] = {0, 1, 2};
+uint8_t n_mov[] = {0, 1, 2};
 uint8_t n_mar[] = {0, 0, 0};
 
 bool prima_volta = true;
@@ -172,11 +174,120 @@ void loop() {
   // test_con_finecorsa_2();
   // test_con_finecorsa_3();
 
-  // test_motorino(7);
+  // test_solo_motorino(7);
+
+  // test_alzata(21);
+
+  // sequenza_3_ottimizzata();
+
+  // sequenza_con_marius();
+
+}
+
+void test_alzata(uint8_t n) {
+
+  if (prima_volta) {
+    prima_volta = false;
+
+    // spegni tutti i relay e aspetta 5 secondi
+    Serial.println("SPENGO TUTTO");
+    relay_single_write(0x00, 0xFF, false);
+    Serial.println("aspetto 5 sec.");
+    delay(ATTESA_ATTUATORE);
+  }
+
+  uint8_t nn;
+
+  if (n <=0) {
+    nn = 1;
+  } else if (n >= 40) {
+    nn = 39;
+  } else {
+    nn = n - 1; 
+  }
+
+  martello_scelto = nn;
+  Serial.print("SCELGO MARTELLO: ");
+  Serial.println(martello_scelto);
+
+  Serial.print("MODULO: ");
+  Serial.print(modulo_ws(martello_scelto));
+  Serial.print(" - NUMERO: ");
+  Serial.println(numero_relay(martello_scelto));
+
+  // spingi attuatore lineare
+  Serial.println("SPINGO ATTUATORE LINEARE");
+  relay_double_write(modulo_ws(martello_scelto), numero_relay(martello_scelto), true);
+
+  // aspetto 5 secondi
+  Serial.println("aspetto 5 sec");
+  delay(ATTESA_ATTUATORE);
+
+  if (martello_scelto < 13) {
+  // se 0 - 12 allora M1
+
+    Serial.println("ALZO BARRA 1");
+    M1->moveTo(CORSA_M1);
+    while(M1->isRunning()){};
+
+    Serial.println("aspetto 1 secondo");
+    delay(1000);
+
+    Serial.println("ABBASSO BARRA 1");
+    M1->moveTo(0);
+    while(M1->isRunning()){};
+    
+  } else if (martello_scelto < 26) {
+  // se 13 - 25 allora M2
+
+    Serial.println("ALZO BARRA 2");
+    M2->moveTo(CORSA_M2);
+    while(M2->isRunning()){};
+
+    Serial.println("aspetto 1 secondo");
+    delay(1000);
+
+    Serial.println("ABBASSO BARRA 2");
+    M2->moveTo(0);
+    while(M2->isRunning()){};
+
+  } else if (martello_scelto < 39) {
+  // se 26 - 38 allora M3
+    Serial.println("ALZO BARRA 3");
+    M3->moveTo(CORSA_M3);
+    while(M3->isRunning()){};
+
+    Serial.println("aspetto 1 secondo");
+    delay(1000);
+    
+    Serial.println("ABBASSO BARRA 3");
+    M3->moveTo(0);
+    while(M3->isRunning()){};
+  }
+
+  // ritorno attuatore lineare
+  Serial.println("RITORNO ATTUATORE LINEARE");
+  relay_double_write(modulo_ws(martello_scelto), numero_relay(martello_scelto), false);
+
+  // aspetto 5 secondi
+  Serial.println("aspetto 5 sec");
+  delay(ATTESA_ATTUATORE);
+
+  while (1);
 
 }
 
 void test_motorino(uint8_t n) {
+
+  if (prima_volta) {
+    prima_volta = false;
+
+    // spegni tutti i relay e aspetta 5 secondi
+    Serial.println("SPENGO TUTTO");
+    relay_single_write(0x00, 0xFF, false);
+    Serial.println("aspetto 5 sec.");
+    delay(ATTESA_ATTUATORE);
+  }
 
   uint8_t nn;
 
@@ -189,9 +300,9 @@ void test_motorino(uint8_t n) {
   }
 
   relay_double_write(modulo_ws(nn), numero_relay(nn), true);
-  delay(ATTESA_ATTUATORE);
+  delay(5000);
   relay_double_write(modulo_ws(nn), numero_relay(nn), false);
-  delay(ATTESA_ATTUATORE);
+  delay(6000);
 }
 
 void test_motore_1() {
@@ -296,6 +407,118 @@ void test_con_finecorsa_3() {
   }
 }
 
+void sequenza_con_marius() {
+
+  bool go = digitalRead(ADIO1);
+
+  if (go) {
+
+    digitalWrite(DIO15, LOW);
+
+    if (prima_volta) {
+      prima_volta = false;
+
+      // spegni tutti i relay e aspetta 5 secondi
+      Serial.println("SPENGO TUTTO");
+      relay_single_write(0x00, 0xFF, false);
+      Serial.println("aspetto 5 sec.");
+      delay(ATTESA_ATTUATORE);
+
+      // spara 1 batacchio su ogni motore
+      Serial.println("SPARO 1 SU OGNI MOTORE");
+      n_mar[0] = random(13);
+      n_mar[1] = random(13);
+      n_mar[2] = random(13);
+
+      for (uint8_t i=0; i<3; i++) {
+        martello_scelto = n_mar[i] + i*13;
+        relay_double_write(modulo_ws(martello_scelto), numero_relay(martello_scelto), true);
+        delay(100);
+      }
+
+      Serial.println("aspetto 5 sec.");
+      delay(ATTESA_ATTUATORE);
+    }
+
+    // MUOVO IL PRIMO ELEMENTO DELLA LISTA n_mov 
+    // E 
+    // CAMBIO IL BATACCHIO DELL'ULTIMO !
+    Serial.print("MUOVO ASTA NUM: ");
+    Serial.println(n_mov[0]);
+
+    Serial.print("e cambio batacchio dell'ultimo: da : ");
+    martello_scelto = n_mar[n_mov[2]] + n_mov[2]*13;
+    Serial.print(martello_scelto);
+    relay_double_write(modulo_ws(martello_scelto), numero_relay(martello_scelto), false);
+    delay(100);
+
+    n_mar[n_mov[2]] = random(13);
+
+    Serial.print(" a : ");
+    martello_scelto = n_mar[n_mov[2]] + n_mov[2]*13;
+    Serial.println(martello_scelto);
+    relay_double_write(modulo_ws(martello_scelto), numero_relay(martello_scelto), true);
+
+    if (n_mov[0] == 0) {
+    // se 0 - 12 allora M1
+
+      Serial.println("ALZO BARRA 1");
+      M1->moveTo(CORSA_M1);
+      while(M1->isRunning()){};
+
+      Serial.println("aspetto 1 secondo");
+      delay(1000);
+
+      Serial.println("ABBASSO BARRA 1");
+      M1->moveTo(0);
+      while(M1->isRunning()){};
+      
+    } else if (n_mov[0] == 1) {
+    // se 13 - 25 allora M2
+
+      Serial.println("ALZO BARRA 2");
+      M2->moveTo(CORSA_M2);
+      while(M2->isRunning()){};
+
+      Serial.println("aspetto 1 secondo");
+      delay(1000);
+
+      Serial.println("ABBASSO BARRA 2");
+      M2->moveTo(0);
+      while(M2->isRunning()){};
+
+    } else if (n_mov[0] == 2) {
+    // se 26 - 38 allora M3
+      Serial.println("ALZO BARRA 3");
+      M3->moveTo(CORSA_M3);
+      while(M3->isRunning()){};
+
+      Serial.println("aspetto 1 secondo");
+      delay(1000);
+      
+      Serial.println("ABBASSO BARRA 3");
+      M3->moveTo(0);
+      while(M3->isRunning()){};
+    }
+
+    n_mov[0] = n_mov[1];
+    n_mov[1] = n_mov[2];
+    
+    while (n_mov[2] == n_mov[1]) {
+      n_mov[2] = random(3);
+    }
+
+  } else {
+
+    digitalWrite(DIO15, HIGH);
+    delay(100);
+    
+  }
+
+
+}
+
+
 
 void sequenza_3_ottimizzata() {
 
@@ -305,7 +528,7 @@ void sequenza_3_ottimizzata() {
     // spegni tutti i relay e aspetta 5 secondi
     Serial.println("SPENGO TUTTO");
     relay_single_write(0x00, 0xFF, false);
-    Serial.println("aspetto 5 sec.")
+    Serial.println("aspetto 5 sec.");
     delay(ATTESA_ATTUATORE);
 
     // spara 1 batacchio su ogni motore
@@ -320,7 +543,7 @@ void sequenza_3_ottimizzata() {
       delay(100);
     }
 
-    Serial.println("aspetto 5 sec.")
+    Serial.println("aspetto 5 sec.");
     delay(ATTESA_ATTUATORE);
   }
 
@@ -410,7 +633,7 @@ void sequenza_3_prima() {
   relay_double_write(modulo_ws(martello_scelto), numero_relay(martello_scelto), true);
 
   // aspetto 5 secondi
-  Serial.println("aspetto 5 sec")
+  Serial.println("aspetto 5 sec");
   delay(ATTESA_ATTUATORE);
 
   if (martello_scelto < 13) {
@@ -460,7 +683,7 @@ void sequenza_3_prima() {
   relay_double_write(modulo_ws(martello_scelto), numero_relay(martello_scelto), false);
 
   // aspetto 5 secondi
-  Serial.println("aspetto 5 sec")
+  Serial.println("aspetto 5 sec");
   delay(ATTESA_ATTUATORE);
 
   Serial.println();
@@ -537,13 +760,13 @@ uint8_t modulo_ws(uint8_t num_mot) {
     return 4;
   } else if (num_mot < 40) {
     return 5;
+  } else {
+    return 1;
   }
-
 }
 
 uint8_t numero_relay(uint8_t num_mot) {
   uint8_t mod = modulo_ws(num_mot) - 1;
-
   return (num_mot - mod * 8) * 2;
 }
 
