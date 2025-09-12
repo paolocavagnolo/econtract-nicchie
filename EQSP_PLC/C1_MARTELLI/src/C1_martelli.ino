@@ -162,7 +162,7 @@ uint8_t canale_scelto = 0, old_canale_scelto = 0;
 uint8_t n_mov[] = {0, 1, 2};
 uint8_t n_mar[] = {0, 0, 0};
 
-bool prima_volta = true;
+bool prima_volta = true, prima_spento = true;
 
 void loop() {
 
@@ -199,12 +199,12 @@ void test_alzata(uint8_t n) {
   uint8_t nn;
 
   if (n <=0) {
-    nn = 1;
+    n = 1;
   } else if (n >= 40) {
-    nn = 39;
-  } else {
-    nn = n - 1; 
-  }
+    n = 39;
+  } 
+
+  nn = n - 1;
 
   martello_scelto = nn;
   Serial.print("SCELGO MARTELLO: ");
@@ -292,12 +292,12 @@ void test_motorino(uint8_t n) {
   uint8_t nn;
 
   if (n <=0) {
-    nn = 1;
+    n = 1;
   } else if (n >= 40) {
-    nn = 39;
-  } else {
-    nn = n - 1; 
-  }
+    n = 39;
+  } 
+
+  nn = n - 1;
 
   relay_double_write(modulo_ws(nn), numero_relay(nn), true);
   delay(5000);
@@ -417,6 +417,7 @@ void sequenza_con_marius() {
 
     if (prima_volta) {
       prima_volta = false;
+      prima_spento = true;
 
       // spegni tutti i relay e aspetta 5 secondi
       Serial.println("SPENGO TUTTO");
@@ -510,9 +511,21 @@ void sequenza_con_marius() {
 
   } else {
 
-    digitalWrite(DIO15, HIGH);
-    delay(100);
+    if (prima_spento) {
+      prima_spento = false;
+      
+      goToHome();
+
+      Serial.println("SPENGO TUTTO");
+      relay_single_write(0x00, 0xFF, false);
+      Serial.println("aspetto 5 sec.");
+      delay(ATTESA_ATTUATORE);
+
+      digitalWrite(DIO15, HIGH);
+      delay(100);
+    }
     
+
   }
 
 
