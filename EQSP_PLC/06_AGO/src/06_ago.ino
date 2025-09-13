@@ -150,6 +150,7 @@ unsigned long t_SEL_2 = 0, tS_SEL_2 = 0;
 bool s_SEL_2 = false, p_SEL_2 = true;
 
 bool HOMED = false;
+unsigned long tSequenza = 0;
 
 void loop() {
 
@@ -177,28 +178,32 @@ void logica() {
 
     if (!BASE->isRunning()) {
 
-      if (BASE->getCurrentPosition() == CORSA_BASE / 2) {
-        BASE->moveTo(CORSA_BASE);
+      if (BASE->getCurrentPosition() == CORSA_BASE) {
+        act_BASE(-CORSA_BASE,3);
       }
-      else if (BASE->getCurrentPosition() == CORSA_BASE) {
-        BASE->moveTo(0);
+      else if (BASE->getCurrentPosition() == 0) {
+        act_BASE(CORSA_BASE,3);
       } else {
-        BASE->moveTo(CORSA_BASE);
+        long pos_base = BASE->getCurrentPosition();
+        act_BASE(0 - pos_base,3);
       }
 
     }
 
-    if (!TOP->isRunning()) {
+    if ((millis() - tSequenza) > 1500){
+      if (!TOP->isRunning()) {
 
-      if (TOP->getCurrentPosition() == CORSA_TOP) {
-        TOP->moveTo(0);
-      }
-      else if (TOP->getCurrentPosition() == 0) {
-        TOP->moveTo(CORSA_TOP);
-      } else {
-        TOP->moveTo(CORSA_TOP);
-      }
+        if (TOP->getCurrentPosition() == CORSA_TOP) {
+          act_TOP(-CORSA_TOP,3);
+        }
+        else if (TOP->getCurrentPosition() == 0) {
+          act_TOP(CORSA_TOP,3);
+        } else {
+          long pos_top = TOP->getCurrentPosition();
+          act_BASE(0 - pos_top,3);
+        }
 
+      }
     }
     
 
@@ -300,22 +305,8 @@ void check_STATE() {
       while ((BASE->isRunning()) || (TOP->isRunning())) {}
     }
 
-
     Serial.println("INIZIO LOOP");
-
-    BASE->setSpeedInHz(BASE_SPEED); 
-    BASE->setAcceleration(BASE_ACC);
-    BASE->applySpeedAcceleration();
-
-    TOP->setSpeedInHz(TOP_SPEED); 
-    TOP->setAcceleration(TOP_ACC);
-    TOP->applySpeedAcceleration();
-
-    BASE->moveTo(CORSA_BASE / 2);
-    while(BASE->isRunning()) {};
-
-    BASE->moveTo(CORSA_BASE);
-    TOP->moveTo(CORSA_TOP);
+    tSequenza = millis();
 
   } else if (f_REM) {
 
@@ -657,3 +648,36 @@ void enableMotor() {
   delay(100);  // DA TESTARE
 }
 
+void act_BASE(int32_t pos, float tempo) {
+
+  long V_max, A_cal;
+
+  float V_media = (float)abs(pos) / tempo;
+
+  V_max = V_media * 2;   // step / s
+  A_cal = V_max / (tempo / 2);   // step / s / s
+
+  BASE->setSpeedInHz(V_max);  
+  BASE->setAcceleration(A_cal);
+  BASE->applySpeedAcceleration();
+
+  BASE->move(pos);
+
+}
+
+void act_TOP(int32_t pos, float tempo) {
+
+  long V_max, A_cal;
+
+  float V_media = (float)abs(pos) / tempo;
+
+  V_max = V_media * 2;   // step / s
+  A_cal = V_max / (tempo / 2);   // step / s / s
+
+  TOP->setSpeedInHz(V_max);  
+  TOP->setAcceleration(A_cal);
+  TOP->applySpeedAcceleration();
+
+  TOP->move(pos);
+
+}
