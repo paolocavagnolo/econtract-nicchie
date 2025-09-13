@@ -124,7 +124,7 @@ void loop() {
     if (P) {
       P = false;
       E = false;
-      M1->setSpeedInHz(1000);
+      M1->setSpeedInHz(500);
       M1->applySpeedAcceleration();
       T = millis();
     }
@@ -145,7 +145,7 @@ void loop() {
     if (P) {
       P = false;
       E = false;
-      M1->setSpeedInHz(2500);
+      M1->setSpeedInHz(1000);
       M1->applySpeedAcceleration();
       T = millis();
     }
@@ -165,7 +165,7 @@ void loop() {
     if (P) {
       P = false;
       E = false;
-      M1->setSpeedInHz(5000);
+      M1->setSpeedInHz(1500);
       M1->applySpeedAcceleration();
       T = millis();
     }
@@ -185,7 +185,7 @@ void loop() {
     if (P) {
       P = false;
       E = false;
-      M1->setSpeedInHz(500);
+      M1->setSpeedInHz(250);
       M1->applySpeedAcceleration();
       T = millis();
     }

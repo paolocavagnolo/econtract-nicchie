@@ -179,28 +179,28 @@ void logica() {
     if (!BASE->isRunning()) {
 
       if (BASE->getCurrentPosition() == CORSA_BASE) {
-        act_BASE(-CORSA_BASE,3);
+        act_BASE(-CORSA_BASE,6);
       }
       else if (BASE->getCurrentPosition() == 0) {
-        act_BASE(CORSA_BASE,3);
+        act_BASE(CORSA_BASE,6);
       } else {
         long pos_base = BASE->getCurrentPosition();
-        act_BASE(0 - pos_base,3);
+        act_BASE(0 - pos_base,6);
       }
 
     }
 
-    if ((millis() - tSequenza) > 1500){
+    if ((millis() - tSequenza) > 3000){
       if (!TOP->isRunning()) {
 
         if (TOP->getCurrentPosition() == CORSA_TOP) {
-          act_TOP(-CORSA_TOP,3);
+          act_TOP(-CORSA_TOP,6);
         }
         else if (TOP->getCurrentPosition() == 0) {
-          act_TOP(CORSA_TOP,3);
+          act_TOP(CORSA_TOP,6);
         } else {
           long pos_top = TOP->getCurrentPosition();
-          act_BASE(0 - pos_top,3);
+          act_BASE(0 - pos_top,6);
         }
 
       }
@@ -320,12 +320,7 @@ void check_STATE() {
 
       STATE = 0;
 
-      if (!HOMED) {
-        goToHome();
-      } else {
-        BASE->moveTo(0);
-        TOP->moveTo(0);
-      }
+      goToHome();
 
       disableMotor();
 
@@ -592,8 +587,8 @@ void goToHome() {
   bool exit_flag_base = false;
   bool exit_flag_top = false;
 
-  BASE->setSpeedInHz(MAN_SPEED);  
-  BASE->setAcceleration(MAN_ACC);
+  BASE->setSpeedInHz(BASE_SPEED);  
+  BASE->setAcceleration(BASE_ACC);
   BASE->applySpeedAcceleration();
 
   TOP->setSpeedInHz(MAN_SPEED);  
