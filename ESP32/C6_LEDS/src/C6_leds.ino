@@ -40,6 +40,7 @@ CRGB leds_12[NUM_LEDS_12];
 CRGB leds_13[NUM_LEDS_13];
 CRGB leds_14[NUM_LEDS_14];
 CRGB leds_15[NUM_LEDS_15];
+CRGB leds_test[200];
 
 CRGB *leds[] = {&leds_1[0],
                 &leds_2[0],
@@ -95,12 +96,14 @@ void setup() {
   FastLED.addLeds<LED_TYPE,25,COLOR_ORDER>(leds_13, NUM_LEDS_13).setTemperature(Tungsten100W);
   FastLED.addLeds<LED_TYPE,26,COLOR_ORDER>(leds_14, NUM_LEDS_14).setTemperature(Tungsten100W);
   FastLED.addLeds<LED_TYPE,27,COLOR_ORDER>(leds_15, NUM_LEDS_15).setTemperature(Tungsten100W);
+  FastLED.addLeds<LED_TYPE,32,COLOR_ORDER>(leds_test, 200).setTemperature(Tungsten100W);
 
   FastLED.setBrightness(255);
 
   delay(100);
 
   pinMode(MARIUS_PIN, INPUT);
+  fill_solid(leds_test, 200, CRGB::Red);
 
 }
 
@@ -125,8 +128,8 @@ unsigned long tSpento = 0;
 void loop()
 {
   
-  // if (digitalRead(MARIUS_PIN)) {
-  if (true) {
+  if (digitalRead(MARIUS_PIN)) {
+  //if (true) {
     if (prima_volta) {
       prima_volta = false;
       prima_uscita = true;
@@ -135,7 +138,7 @@ void loop()
 
     sequence();
 
-    if ((millis() - tShow) > 50) {
+    if ((millis() - tShow) > 40) {
       tShow = millis();
       FastLED.show();
     }
@@ -207,7 +210,7 @@ void sequence() {
   for (uint8_t i=0; i<NUM_STRIP; i++) {
 
     if (ena[i]) {
-      if ((millis() - tLed[i]) > 10) {
+      if ((millis() - tLed[i]) > 16) {
         tLed[i] = millis();
 
         if (dir[i]) {
