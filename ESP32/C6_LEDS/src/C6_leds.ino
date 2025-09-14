@@ -112,6 +112,7 @@ unsigned long tLed[NUM_STRIP]{0};
 int cVal[NUM_STRIP]{0};
 bool dir[NUM_STRIP]{true};
 bool ena[NUM_STRIP]{false};
+int indexVal[NUM_STRIP]{0};
 
 unsigned long tSequence = 0;
 unsigned long tShow = 0;
@@ -136,7 +137,7 @@ void loop()
       random_sequence();
     }
 
-    sequence();
+    sequence_snake();
 
     if ((millis() - tShow) > 40) {
       tShow = millis();
@@ -184,7 +185,7 @@ void random_sequence() {
 }
 
 
-void sequence() {
+void sequence_pulse() {
 
   if ((millis() - tSequence) > 1800) {
     tSequence = millis();
@@ -196,6 +197,7 @@ void sequence() {
     ena[n] = true;
     dir[n] = true;
     cVal[n] = 0;
+    indexVal[n] = 0;
 
     idx++;
 
@@ -233,6 +235,47 @@ void sequence() {
         }
 
         fill_solid(leds[i],NUM_LEDS[i],CRGB(cVal[i],cVal[i],cVal[i]));
+      }
+    }
+  }
+
+}
+
+void sequence_snake() {
+
+  if ((millis() - tSequence) > 1800) {
+    tSequence = millis();
+
+    uint8_t n = seq_figure[idx];
+    Serial.print("accendo ");
+    Serial.println(n);
+
+    ena[n] = true;
+    dir[n] = true;
+    cVal[n] = 0;
+
+    idx++;
+
+    if (idx >= 15) {
+      random_sequence();
+      idx = 0;
+    }
+
+  }
+
+
+  for (uint8_t i=0; i<NUM_STRIP; i++) {
+
+    if (ena[i]) {
+      if ((millis() - tLed[i]) > 16) {
+        tLed[i] = millis();
+
+        leds[i][indexVal[i]] = CRGB::White;
+        fadeToBlackBy(leds[i],NUM_LEDS[i],20);
+        indexVal[i]++;
+        if (indexVal[i] >= NUM_LEDS[i] - 1) {
+          indexVal[i] = 0;
+        }
       }
     }
   }
