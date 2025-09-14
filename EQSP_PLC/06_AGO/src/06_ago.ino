@@ -48,8 +48,8 @@
 #define ZERO_OFFSET_BASE 5
 #define ZERO_OFFSET_TOP 5
 
-#define CORSA_BASE -150
-#define CORSA_TOP 1000
+#define CORSA_BASE -120
+#define CORSA_TOP 1200
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *BASE = NULL;
