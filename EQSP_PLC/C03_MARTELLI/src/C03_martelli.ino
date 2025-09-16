@@ -173,6 +173,7 @@ uint8_t n_mov[] = {0, 1, 2};
 uint8_t n_mar[] = {0, 0, 0};
 
 bool prima_volta = true, prima_spento = true;
+bool avvio_gioco = false;
 
 void loop() {
 
@@ -201,9 +202,11 @@ void loop() {
     if (prima_volta) {
       prima_volta = false;
       prima_spento = true;
+      avvio_gioco = true;
+      delay(300);
       digitalWrite(DIO15, LOW);
       digitalWrite(DIO16, HIGH);
-
+      S = -1;
     }
 
     test_alzata_in3();
@@ -212,12 +215,10 @@ void loop() {
     if (prima_spento) {
       prima_spento = false;
       prima_volta = true;
-      digitalWrite(DIO15, HIGH);
-      digitalWrite(DIO16, LOW);
+      avvio_gioco = false;
+      delay(300);
     }
   }
-
-  
 
 }
 
@@ -240,8 +241,14 @@ void test_alzata_in3() {
     goToHome();
     delay(ATTESA_ATTUATORE);
 
-    S = 0;
-    P = true;
+    if (avvio_gioco) {
+      S = 0;
+      P = true;
+    } else {
+      digitalWrite(DIO15, HIGH);
+      digitalWrite(DIO16, LOW);
+    }
+
   }
 
   // INSERISCI
@@ -341,7 +348,12 @@ void test_alzata_in3() {
       T = millis();
     }
 
-    S = 0;
+    if (avvio_gioco) {
+      S = 0;
+    } else {
+      S = -1;
+    }
+
     P = true;
 
   }

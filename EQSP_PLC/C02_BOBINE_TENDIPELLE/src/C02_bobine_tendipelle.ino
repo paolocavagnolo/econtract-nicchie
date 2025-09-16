@@ -45,7 +45,6 @@ HardwareSerial RS485(2);
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *M1 = NULL;
-FastAccelStepper *M2 = NULL;
 
 void setup() {
 
@@ -67,14 +66,11 @@ void setup() {
   // PANEL INPUT
   pinMode(ADIO1, INPUT);  // bobine marius
   pinMode(ADIO2, INPUT);  // tendipelle marius
-  pinMode(ADIO3, INPUT);  // finecorsa M1
-  pinMode(ADIO4, INPUT);  // finecorsa M2
+  pinMode(ADIO3, INPUT);  // finecorsa M12
 
   // DRIVER OUTPUT
   pinMode(DIO11, OUTPUT); // M1 enable
-  pinMode(DIO14, OUTPUT); // M2 enable
-  digitalWrite(DIO11, HIGH);
-  digitalWrite(DIO14, HIGH);
+  digitalWrite(DIO11, LOW);
 
   delay(1000);
 
@@ -89,14 +85,6 @@ void setup() {
  
   }
 
-  // M2 = engine.stepperConnectToPin(DIO12);
-
-  // if (M2) {
-  //     M2->setDirectionPin(DIO13, false);  
-  //     M2->setSpeedInHz(M2_SPEED);  
-  //     M2->setAcceleration(M2_ACC); 
-
-  // }
 
   // AUDIO OUTPUT
   pinMode(DIO15, OUTPUT);   // audio bobine
@@ -122,6 +110,7 @@ void setup() {
 }
 
 bool prima_volta_bobine = true;
+bool prima_uscita_bobine = true;
 
 bool prima_volta_tendipelle = true;
 bool prima_uscita_tendipelle = true;
@@ -133,13 +122,31 @@ unsigned long tUscitaBobine = 0;
 
 void loop() {
 
- logica_bobine();
+ //logica_bobine();
 
   // for (uint8_t i=1; i<25; i++) {
   //   accendi_bobina(i);
   // }
   
-  logica_tendipelle();
+//logica_tendipelle();
+
+  delay(1000);
+  Serial.println("zero");
+  goToHome_tendipelle();
+
+  while (millis() < 10000) {
+    if (M1->getCurrentPosition() == 0) {
+      Serial.println("CORSA");
+      M1->moveTo(CORSA);
+    }
+    if (M1->getCurrentPosition() == CORSA) {
+      Serial.println("ZERO");
+      M1->moveTo(0);
+    }
+  }
+  while(M1->isRunning()){};
+  Serial.println("fine");
+
 
 }
 
@@ -147,7 +154,6 @@ void loop() {
 void logica_tendipelle() {
 
   if (digitalRead(ADIO2)) {
-  //if (true) {
 
     if (prima_volta_tendipelle) {
       prima_volta_tendipelle = false;
@@ -163,10 +169,7 @@ void logica_tendipelle() {
 
     }
 
-    M1->move(CORSA);
-    while(M1->isRunning()){};
-    M1->move(-CORSA);
-    while(M1->isRunning()){};
+    
 
   } else {
     if (prima_uscita_tendipelle) {
@@ -175,12 +178,13 @@ void logica_tendipelle() {
 
       M1->stopMove();
       while(M1->isRunning()){};
-      goToHome_tendipelle();
+      M1->moveTo(0);
+      while(M1->isRunning()){};
 
       delay(100);
 
       digitalWrite(DIO11, LOW);
-      digitalWrite(DIO14, LOW);
+
       digitalWrite(DIO16, LOW);
       digitalWrite(DIO10, LOW);
     }
@@ -191,6 +195,7 @@ void accendi_bobina(uint8_t n) {
 
   if (prima_volta_bobine) {
     prima_volta_bobine = false;
+
     relay_write(0x00, 0xFF, false);
     delay(100);
     relay_write(0x00, 0xFF, false);
@@ -224,9 +229,10 @@ void accendi_bobina(uint8_t n) {
 void logica_bobine() {
 
   if (digitalRead(ADIO1)) {
-  //if (true) {
+
     if (prima_volta_bobine) {
       prima_volta_bobine = false;
+      prima_uscita_bobine = true;
       relay_write(0x00, 0xFF, false);
       delay(100);
       relay_write(0x00, 0xFF, false);
@@ -263,10 +269,16 @@ void logica_bobine() {
 
   } else {
 
-    if ((millis() - tUscitaBobine) > 1000) {
-      tUscitaBobine = millis();
+    if (prima_uscita_bobine) {
+      prima_uscita_bobine = false;
+      prima_volta_bobine = true;
+
       relay_write(0x00, 0xFF, false);
-      digitalWrite(15, HIGH);
+      delay(100);
+      relay_write(0x00, 0xFF, false);
+      delay(100);
+      relay_write(0x00, 0xFF, false);
+      digitalWrite(15, LOW);
     }
     
   }
@@ -303,23 +315,13 @@ void relay_write(uint8_t id_device, uint8_t id_relay, bool stato_relay) {
 }
 
 void goToHome_tendipelle() {
-
-  bool exit_flag = false;
   
   M1->runBackward();
-
-  while (!exit_flag) {
-
-    if (digitalRead(ADIO3)) {
-      M1->forceStop();
-      delay(100);
-      M1->move(ZERO_OFFSET_TENDIPELLE);
-      while (M1->isRunning()) {}
-      exit_flag = true;
-    }
-
-  }
-
+  while(!digitalRead(ADIO3)){};
+  M1->forceStop();
+  delay(200);
+  M1->move(ZERO_OFFSET_TENDIPELLE);
+  while(M1->isRunning()){};
   M1->setCurrentPosition(0);
 
 }

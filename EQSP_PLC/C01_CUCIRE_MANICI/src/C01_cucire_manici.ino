@@ -60,7 +60,7 @@ void setup() {
   // PANEL INPUT
   pinMode(ADIO1, INPUT);  // cucire marius
   pinMode(ADIO4, INPUT);  // manici marius
-  pinMode(ADIO3, INPUT);  // manici finecorsa
+  pinMode(ADIO5, INPUT);  // manici finecorsa
 
   // DRIVER OUTPUT
   pinMode(DIO11, OUTPUT); // cucire enable
@@ -122,6 +122,10 @@ unsigned long T = 0;
 
 
 unsigned long tt = 0;
+int ponte = 0, old_ponte = 0;
+int fc = 0, old_fc = 0;
+
+unsigned long tDebug = 0;
 
 void loop() {
 
@@ -160,7 +164,6 @@ void logica_cucire() {
       digitalWrite(DIO15, LOW);
 
     }
-    delay(100);
 
   }
 
@@ -253,23 +256,11 @@ void logica_cucire() {
   }
 }
 
-void logica_manici_test() {
-
-  digitalWrite(DIO14, LOW);
-  
-  //goToHome_manici();
-  digitalWrite(DIO14, HIGH);
-  delay(1000);
-
-}
-
-unsigned long tDebug = 0, tDebug1 = 0;
 
 void logica_manici() {
 
   if (digitalRead(ADIO4)) {
 
-  //if (true) {
     if (prima_volta_manici) {
       Serial.println("DENTRO");
       prima_volta_manici = false;
@@ -278,17 +269,15 @@ void logica_manici() {
       digitalWrite(DIO14, LOW);
       digitalWrite(DIO16, HIGH);
       delay(300);
-      ////goToHome_manici();
+      goToHome_manici();
 
-      M_MANICI->moveTo(CORSA_MANICI);
     }
-
 
     if (!M_MANICI->isRunning()) {
       if (M_MANICI->getCurrentPosition() == 0) {
-        M_MANICI->moveTo(CORSA_MANICI);
+        M_MANICI->move(CORSA_MANICI);
       } else if (M_MANICI->getCurrentPosition() == CORSA_MANICI) {
-        M_MANICI->moveTo(0);
+        M_MANICI->move(-CORSA_MANICI);
       } else {
         M_MANICI->moveTo(0);
       }
@@ -302,37 +291,27 @@ void logica_manici() {
 
       M_MANICI->stopMove();
       while(M_MANICI->isRunning()){};
-      //goToHome_manici();
-      M_MANICI->moveTo(0);
+       M_MANICI->moveTo(0);
       while(M_MANICI->isRunning()){};
+      //goToHome_manici();
 
       delay(1000);
       digitalWrite(DIO14, HIGH);
       digitalWrite(DIO16, LOW);
     }
-    delay(100);
 
   }
 }
 
 void goToHome_manici() {
 
-  bool exit_flag = false;
   Serial.println("ZERO INZIO");
   M_MANICI->runBackward();
-
-  while (!exit_flag) {
-
-    if (digitalRead(ADIO3)) {
-      M_MANICI->forceStop();
-      delay(100);
-      M_MANICI->move(ZERO_OFFSET_MANICI);
-      while (M_MANICI->isRunning()) {}
-      exit_flag = true;
-    }
-
-  }
-
+  while (digitalRead(ADIO5)){};
+  M_MANICI->forceStop();
+  delay(200);
+  M_MANICI->move(ZERO_OFFSET_MANICI);
+  while (M_MANICI->isRunning()){};
   M_MANICI->setCurrentPosition(0);
   Serial.println("ZERO FINE");
 
