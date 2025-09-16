@@ -1,0 +1,146 @@
+#######################################
+# EQSP32 Datatypes (KEYWORD1)
+#######################################
+
+EQSP32	KEYWORD1
+EQSP32Configs	KEYWORD1
+Timer	KEYWORD1
+BinarySensorEntity	KEYWORD1
+SensorEntity	KEYWORD1
+EQSerialMode	KEYWORD1
+PinMode	KEYWORD1
+TrigMode	KEYWORD1
+
+###########################################
+# EQSP32 Library Functions (KEYWORD2)
+###########################################
+
+# Initialization
+begin	KEYWORD2
+
+# Pin Usage and Configuration
+pinMode	KEYWORD2
+readMode	KEYWORD2
+configPOUTFreq	KEYWORD2
+configSWT	KEYWORD2
+configTIN	KEYWORD2
+configRELAY	KEYWORD2
+pinValue	KEYWORD2
+readPin	KEYWORD2
+getPin	KEYWORD2
+
+# Power Supply Monitoring
+readInputVoltage	KEYWORD2
+readOutputVoltage	KEYWORD2
+
+# Buzzer Control
+buzzerOn	KEYWORD2
+buzzerOff	KEYWORD2
+
+# Serial Communication
+configSerial	KEYWORD2
+
+# EQ Cloud Variables (User Variables)
+readUserBool	KEYWORD2
+writeUserBool	KEYWORD2
+readUserInt	KEYWORD2
+writeUserInt	KEYWORD2
+
+# Timer Functions
+start	KEYWORD2
+stop	KEYWORD2
+pause	KEYWORD2
+reset	KEYWORD2
+value	KEYWORD2
+isExpired	KEYWORD2
+isRunning	KEYWORD2
+
+# Interface Functions
+createInterface	KEYWORD2
+readInterface	KEYWORD2
+updateInterface	KEYWORD2
+writeInterface	KEYWORD2
+
+# Utility Functions
+isLocalPin	KEYWORD2
+isExpModulePin	KEYWORD2
+
+######################################
+# EQSP32 Macros (KEYWORD2)
+#######################################
+# EQ main/aux module configuration
+MASTER          KEYWORD2
+SLAVE_1         KEYWORD2
+SLAVE_2         KEYWORD2
+SLAVE_3         KEYWORD2
+SLAVE_4         KEYWORD2
+
+EQ_MAIN         KEYWORD2
+EQ_AUX_1        KEYWORD2
+EQ_AUX_2        KEYWORD2
+EQ_AUX_3        KEYWORD2
+EQ_AUX_4        KEYWORD2
+
+# EQxM (EQ expansion modules)
+EQXPH           KEYWORD2
+
+######################################
+# EQSP32 Constants (LITERAL1)
+#######################################
+
+EQ_PIN_1	LITERAL1
+EQ_PIN_2	LITERAL1
+EQ_PIN_3	LITERAL1
+EQ_PIN_4	LITERAL1
+EQ_PIN_5	LITERAL1
+EQ_PIN_6	LITERAL1
+EQ_PIN_7	LITERAL1
+EQ_PIN_8	LITERAL1
+EQ_PIN_9	LITERAL1
+EQ_PIN_10	LITERAL1
+EQ_PIN_11	LITERAL1
+EQ_PIN_12	LITERAL1
+EQ_PIN_13	LITERAL1
+EQ_PIN_14	LITERAL1
+EQ_PIN_15	LITERAL1
+EQ_PIN_16	LITERAL1
+EQ_AO_1	LITERAL1
+EQ_AO_2	LITERAL1
+EQ_RS232_TX	LITERAL1
+EQ_RS232_RX	LITERAL1
+EQ_RS485_TX	LITERAL1
+EQ_RS485_RX	LITERAL1
+EQ_RS485_EN	LITERAL1
+EQ_CAN_TX	LITERAL1
+EQ_CAN_RX	LITERAL1
+NO_MODE	LITERAL1
+CUSTOM	LITERAL1
+DIN	LITERAL1
+DOUT	LITERAL1
+AIN	LITERAL1
+AOUT	LITERAL1
+POUT	LITERAL1
+SWT	LITERAL1
+TIN	LITERAL1
+RELAY	LITERAL1
+RAIN	LITERAL1
+PH	LITERAL1
+STATE	LITERAL1
+ON_RISING	LITERAL1
+ON_FALLING	LITERAL1
+ON_TOGGLE	LITERAL1
+RS232	LITERAL1
+RS232_INV	LITERAL1
+RS485_TX	LITERAL1
+RS485_RX	LITERAL1
+
+# Sensor and Interface Types
+SWITCH	LITERAL1
+BUTTON	LITERAL1
+VALVE	LITERAL1
+INTEGER_VALUE	LITERAL1
+FLOAT_VALUE	LITERAL1
+WATER_CONSUMPTION_SENSOR	LITERAL1
+VOLUME_STORAGE_SENSOR	LITERAL1
+VOLUME_FLOW_RATE_SENSOR	LITERAL1
+PRECIPITATION_INTENSITY_SENSOR	LITERAL1
