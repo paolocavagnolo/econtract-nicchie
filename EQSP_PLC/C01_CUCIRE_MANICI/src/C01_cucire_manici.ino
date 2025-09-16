@@ -59,7 +59,7 @@ void setup() {
 
   // PANEL INPUT
   pinMode(ADIO1, INPUT);  // cucire marius
-  pinMode(ADIO2, INPUT);  // manici marius
+  pinMode(ADIO4, INPUT);  // manici marius
   pinMode(ADIO3, INPUT);  // manici finecorsa
 
   // DRIVER OUTPUT
@@ -121,6 +121,8 @@ bool P = true, E = false;
 unsigned long T = 0;
 
 
+unsigned long tt = 0;
+
 void loop() {
 
   logica_cucire();
@@ -139,7 +141,7 @@ void logica_cucire() {
 
       digitalWrite(DIO11, HIGH);
       digitalWrite(DIO15, HIGH);
-      delay(100);
+      delay(200);
       S = 0;
       M_CUCIRE->runForward();
     }
@@ -255,27 +257,32 @@ void logica_manici_test() {
 
   digitalWrite(DIO14, LOW);
   
-  goToHome_manici();
+  //goToHome_manici();
   digitalWrite(DIO14, HIGH);
   delay(1000);
 
 }
 
+unsigned long tDebug = 0, tDebug1 = 0;
+
 void logica_manici() {
 
-  if (digitalRead(ADIO2)) {
+  if (digitalRead(ADIO4)) {
+
   //if (true) {
     if (prima_volta_manici) {
+      Serial.println("DENTRO");
       prima_volta_manici = false;
       prima_uscita_manici = true;
 
       digitalWrite(DIO14, LOW);
       digitalWrite(DIO16, HIGH);
-      delay(100);
-      goToHome_manici();
+      delay(300);
+      ////goToHome_manici();
 
       M_MANICI->moveTo(CORSA_MANICI);
     }
+
 
     if (!M_MANICI->isRunning()) {
       if (M_MANICI->getCurrentPosition() == 0) {
@@ -289,12 +296,15 @@ void logica_manici() {
 
   } else {
     if (prima_uscita_manici) {
+      Serial.println("FUORI");
       prima_uscita_manici = false;
       prima_volta_manici = true;
 
       M_MANICI->stopMove();
       while(M_MANICI->isRunning()){};
-      goToHome_manici();
+      //goToHome_manici();
+      M_MANICI->moveTo(0);
+      while(M_MANICI->isRunning()){};
 
       delay(1000);
       digitalWrite(DIO14, HIGH);
@@ -308,7 +318,7 @@ void logica_manici() {
 void goToHome_manici() {
 
   bool exit_flag = false;
-  
+  Serial.println("ZERO INZIO");
   M_MANICI->runBackward();
 
   while (!exit_flag) {
@@ -324,5 +334,6 @@ void goToHome_manici() {
   }
 
   M_MANICI->setCurrentPosition(0);
+  Serial.println("ZERO FINE");
 
 }
