@@ -30,13 +30,14 @@
 
 #include "FastAccelStepper.h"
 
-#define M_CUCIRE_SPEED  1000
-#define M_CUCIRE_ACC    3000
+#define M_CUCIRE_SPEED  500
+#define M_CUCIRE_ACC    500
 
-#define M_MANICI_SPEED  10000
-#define M_MANICI_ACC    15000
+#define M_MANICI_SPEED  5000
+#define M_MANICI_ACC    5000
 
-#define CORSA_MANICI     1000
+#define CORSA_MANICI    25000
+#define ZERO_OFFSET_MANICI 250
 
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
@@ -64,6 +65,8 @@ void setup() {
   // DRIVER OUTPUT
   pinMode(DIO11, OUTPUT); // cucire enable
   pinMode(DIO14, OUTPUT); // manici enable
+  digitalWrite(DIO11, LOW);
+  digitalWrite(DIO14, HIGH);
 
   engine.init();
 
@@ -82,6 +85,13 @@ void setup() {
       M_MANICI->setSpeedInHz(M_MANICI_SPEED);  
       M_MANICI->setAcceleration(M_MANICI_ACC);   
   }
+
+  // AUDIO SIGNAL
+  pinMode(DIO15, OUTPUT); // segnale audio cucire
+  pinMode(DIO16, OUTPUT); // segnale audio manici
+  digitalWrite(DIO15, LOW);
+  digitalWrite(DIO16, LOW);
+
 
   // BUZZER 
   ledcSetup(0, 1000, 8);
@@ -110,22 +120,26 @@ int S = -1;
 bool P = true, E = false;
 unsigned long T = 0;
 
+
 void loop() {
 
-  // logica_cucire();
+  logica_cucire();
 
-  // logica_manici();
+  logica_manici();
 
 }
 
 void logica_cucire() {
+
   if (digitalRead(ADIO1)) {
 
     if (prima_volta_cucire) {
       prima_volta_cucire = false;
       prima_uscita_cucire = true;
 
-      digitalWrite(DIO11, LOW);
+      digitalWrite(DIO11, HIGH);
+      digitalWrite(DIO15, HIGH);
+      delay(100);
       S = 0;
       M_CUCIRE->runForward();
     }
@@ -140,8 +154,11 @@ void logica_cucire() {
 
       delay(1000);
       S = -1;
-      digitalWrite(DIO11, HIGH);
+      digitalWrite(DIO11, LOW);
+      digitalWrite(DIO15, LOW);
+
     }
+    delay(100);
 
   }
 
@@ -154,9 +171,10 @@ void logica_cucire() {
       M_CUCIRE->setSpeedInHz(500);
       M_CUCIRE->applySpeedAcceleration();
       T = millis();
+      Serial.println("parte!");
     }
 
-    if ((millis() - T) > 5000) {
+    if ((millis() - T) > 10000) {
       E = true;
     }
 
@@ -175,6 +193,7 @@ void logica_cucire() {
       M_CUCIRE->setSpeedInHz(1000);
       M_CUCIRE->applySpeedAcceleration();
       T = millis();
+      Serial.println(S);
     }
 
     if ((millis() - T) > 5000) {
@@ -195,9 +214,10 @@ void logica_cucire() {
       M_CUCIRE->setSpeedInHz(1500);
       M_CUCIRE->applySpeedAcceleration();
       T = millis();
+      Serial.println(S);
     }
 
-    if ((millis() - T) > 3000) {
+    if ((millis() - T) > 5000) {
       E = true;
     }
 
@@ -215,9 +235,10 @@ void logica_cucire() {
       M_CUCIRE->setSpeedInHz(250);
       M_CUCIRE->applySpeedAcceleration();
       T = millis();
+      Serial.println(S);
     }
 
-    if ((millis() - T) > 1000) {
+    if ((millis() - T) > 10000) {
       E = true;
     }
 
@@ -230,13 +251,29 @@ void logica_cucire() {
   }
 }
 
+void logica_manici_test() {
+
+  digitalWrite(DIO14, LOW);
+  
+  goToHome_manici();
+  digitalWrite(DIO14, HIGH);
+  delay(1000);
+
+}
+
 void logica_manici() {
+
   if (digitalRead(ADIO2)) {
+  //if (true) {
     if (prima_volta_manici) {
       prima_volta_manici = false;
       prima_uscita_manici = true;
 
       digitalWrite(DIO14, LOW);
+      digitalWrite(DIO16, HIGH);
+      delay(100);
+      goToHome_manici();
+
       M_MANICI->moveTo(CORSA_MANICI);
     }
 
@@ -258,11 +295,13 @@ void logica_manici() {
       M_MANICI->stopMove();
       while(M_MANICI->isRunning()){};
       goToHome_manici();
-      while(M_MANICI->isRunning()){};
 
       delay(1000);
       digitalWrite(DIO14, HIGH);
+      digitalWrite(DIO16, LOW);
     }
+    delay(100);
+
   }
 }
 

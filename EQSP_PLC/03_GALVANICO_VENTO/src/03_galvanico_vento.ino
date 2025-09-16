@@ -3,7 +3,7 @@
 
 // DRIVER DM320T
 // 01 02 03 04 05  06 
-// ON ON ON ON OFF ON
+// ON OFF ON ON OFF ON
 
 // 10/09/2025 @POLENE
 // MANCA TEST SU VENTO CABLATI
@@ -40,14 +40,14 @@
 
 #include "FastAccelStepper.h"
 
-#define SLOW_SPEED  8000
-#define SLOW_ACC    6000
+#define SLOW_SPEED  8000  // 8000
+#define SLOW_ACC    6000  // 6000
 
-#define MAN_SPEED 3000
-#define MAN_ACC 10000
+#define MAN_SPEED 3000    // 3000
+#define MAN_ACC   3000     // 10000
 
 #define TARGET_POS 103000
-#define BOLLE_POS 69000
+#define BOLLE_POS   69000
 
 #define ZERO_OFFSET 1000
 

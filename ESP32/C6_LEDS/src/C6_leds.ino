@@ -81,22 +81,22 @@ void setup() {
   Serial.begin(115200);
   delay(300);
 
-  FastLED.addLeds<LED_TYPE,4,COLOR_ORDER>(leds_1, NUM_LEDS_1).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,5,COLOR_ORDER>(leds_2, NUM_LEDS_2).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,13,COLOR_ORDER>(leds_3, NUM_LEDS_3).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,14,COLOR_ORDER>(leds_4, NUM_LEDS_4).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,15,COLOR_ORDER>(leds_5, NUM_LEDS_5).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,32,COLOR_ORDER>(leds_6, NUM_LEDS_6).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,33,COLOR_ORDER>(leds_7, NUM_LEDS_7).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,18,COLOR_ORDER>(leds_8, NUM_LEDS_8).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,19,COLOR_ORDER>(leds_9, NUM_LEDS_9).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,21,COLOR_ORDER>(leds_10, NUM_LEDS_10).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,22,COLOR_ORDER>(leds_11, NUM_LEDS_11).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,23,COLOR_ORDER>(leds_12, NUM_LEDS_12).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,25,COLOR_ORDER>(leds_13, NUM_LEDS_13).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,26,COLOR_ORDER>(leds_14, NUM_LEDS_14).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,27,COLOR_ORDER>(leds_15, NUM_LEDS_15).setTemperature(Tungsten100W);
-  FastLED.addLeds<LED_TYPE,32,COLOR_ORDER>(leds_test, 200).setTemperature(Tungsten100W);
+  FastLED.addLeds<LED_TYPE,4,COLOR_ORDER>(leds_1, NUM_LEDS_1).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,5,COLOR_ORDER>(leds_2, NUM_LEDS_2).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,13,COLOR_ORDER>(leds_3, NUM_LEDS_3).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,14,COLOR_ORDER>(leds_4, NUM_LEDS_4).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,15,COLOR_ORDER>(leds_5, NUM_LEDS_5).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,32,COLOR_ORDER>(leds_6, NUM_LEDS_6).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,33,COLOR_ORDER>(leds_7, NUM_LEDS_7).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,18,COLOR_ORDER>(leds_8, NUM_LEDS_8).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,19,COLOR_ORDER>(leds_9, NUM_LEDS_9).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,21,COLOR_ORDER>(leds_10, NUM_LEDS_10).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,22,COLOR_ORDER>(leds_11, NUM_LEDS_11).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,23,COLOR_ORDER>(leds_12, NUM_LEDS_12).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,25,COLOR_ORDER>(leds_13, NUM_LEDS_13).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,26,COLOR_ORDER>(leds_14, NUM_LEDS_14).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,27,COLOR_ORDER>(leds_15, NUM_LEDS_15).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,32,COLOR_ORDER>(leds_test, 200).setTemperature(Candle);
 
   FastLED.setBrightness(255);
 
@@ -104,6 +104,8 @@ void setup() {
 
   pinMode(MARIUS_PIN, INPUT);
   fill_solid(leds_test, 200, CRGB::Red);
+  pinMode(2, OUTPUT);
+  digitalWrite(2, LOW);
 
 }
 
@@ -125,6 +127,8 @@ bool prima_volta = true;
 bool prima_uscita = true;
 
 unsigned long tSpento = 0;
+int next_fig = 0; 
+bool check_next_fig[NUM_STRIP]{true};
  
 void loop()
 {
@@ -135,6 +139,7 @@ void loop()
       prima_volta = false;
       prima_uscita = true;
       random_sequence();
+      digitalWrite(2, HIGH);
     }
 
     sequence_snake();
@@ -149,6 +154,7 @@ void loop()
       prima_uscita = false;
       prima_volta = true;
       tSpento = millis();
+      digitalWrite(2, LOW);
     }
 
     if ((millis() - tSpento) < 5000) {
@@ -243,9 +249,9 @@ void sequence_pulse() {
 
 void sequence_snake() {
 
-  if ((millis() - tSequence) > 1800) {
-    tSequence = millis();
-
+  if (next_fig < 2) {
+    next_fig++;
+    
     uint8_t n = seq_figure[idx];
     Serial.print("accendo ");
     Serial.println(n);
@@ -253,6 +259,8 @@ void sequence_snake() {
     ena[n] = true;
     dir[n] = true;
     cVal[n] = 0;
+    indexVal[n] = 0;
+    check_next_fig[n] = true;
 
     idx++;
 
@@ -267,7 +275,7 @@ void sequence_snake() {
   for (uint8_t i=0; i<NUM_STRIP; i++) {
 
     if (ena[i]) {
-      if ((millis() - tLed[i]) > 16) {
+      if ((millis() - tLed[i]) > 32) {
         tLed[i] = millis();
 
         leds[i][indexVal[i]] = CRGB::White;
@@ -275,6 +283,18 @@ void sequence_snake() {
         indexVal[i]++;
         if (indexVal[i] >= NUM_LEDS[i] - 1) {
           indexVal[i] = 0;
+          ena[i] = false;
+          Serial.print("spengo ");
+          Serial.println(i);
+          fill_solid(leds[i],NUM_LEDS[i],CRGB::Black);
+        }
+        else if (check_next_fig[i]) {
+          if (indexVal[i] >= NUM_LEDS[i] * 0.7) {
+            next_fig = 0;
+            check_next_fig[i] = false;
+            Serial.print("3/4 ");
+            Serial.println(i);
+          }
         }
       }
     }

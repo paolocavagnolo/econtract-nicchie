@@ -35,12 +35,13 @@ HardwareSerial RS485(2);
 #include "FastAccelStepper.h"
 
 #define M1_SPEED  8000
-#define M1_ACC    8000
+#define M1_ACC    5000
 
-#define M2_SPEED  8000
-#define M2_ACC    8000
+#define M2_SPEED  6000
+#define M2_ACC    10000
 
-#define CORSA     1000
+#define CORSA     900
+#define ZERO_OFFSET_TENDIPELLE 0
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *M1 = NULL;
@@ -72,24 +73,36 @@ void setup() {
   // DRIVER OUTPUT
   pinMode(DIO11, OUTPUT); // M1 enable
   pinMode(DIO14, OUTPUT); // M2 enable
+  digitalWrite(DIO11, HIGH);
+  digitalWrite(DIO14, HIGH);
+
+  delay(1000);
 
   engine.init();
 
   M1 = engine.stepperConnectToPin(DIO9);
 
   if (M1) {
-      M1->setDirectionPin(DIO10);  
+      M1->setDirectionPin(DIO10, false);  
       M1->setSpeedInHz(M1_SPEED);  
-      M1->setAcceleration(M1_ACC);   
+      M1->setAcceleration(M1_ACC); 
+ 
   }
 
-  M2 = engine.stepperConnectToPin(DIO12);
+  // M2 = engine.stepperConnectToPin(DIO12);
 
-  if (M2) {
-      M2->setDirectionPin(DIO13);  
-      M2->setSpeedInHz(M2_SPEED);  
-      M2->setAcceleration(M2_ACC);   
-  }
+  // if (M2) {
+  //     M2->setDirectionPin(DIO13, false);  
+  //     M2->setSpeedInHz(M2_SPEED);  
+  //     M2->setAcceleration(M2_ACC); 
+
+  // }
+
+  // AUDIO OUTPUT
+  pinMode(DIO15, OUTPUT);   // audio bobine
+  pinMode(DIO16, OUTPUT);   // audio tirapelle
+  digitalWrite(DIO15, LOW);
+  digitalWrite(DIO16, LOW);
 
   // BUZZER 
   ledcSetup(0, 1000, 8);
@@ -113,69 +126,47 @@ bool prima_volta_bobine = true;
 bool prima_volta_tendipelle = true;
 bool prima_uscita_tendipelle = true;
 
+uint8_t bobina_scelta;
+unsigned long tWait = 0, tBobine = 0;
+bool tOn = true;
+unsigned long tUscitaBobine = 0;
+
 void loop() {
 
-  // a_caso();
+ logica_bobine();
 
-  // accendi_bobina();
-
-  // logica_tendipelle();
+  // for (uint8_t i=1; i<25; i++) {
+  //   accendi_bobina(i);
+  // }
+  
+  logica_tendipelle();
 
 }
 
+
 void logica_tendipelle() {
-  if (digitalRead(ADIO1)) {
+
+  if (digitalRead(ADIO2)) {
+  //if (true) {
+
     if (prima_volta_tendipelle) {
       prima_volta_tendipelle = false;
       prima_uscita_tendipelle = true;
 
-      digitalWrite(DIO11, LOW);
-      digitalWrite(DIO14, LOW);
-      S = 0;
-      M1->moveTo(CORSA);
-      M2->moveTo(CORSA);
-    }
+      digitalWrite(DIO11, HIGH);
+      digitalWrite(DIO14, HIGH);
+      digitalWrite(DIO16, HIGH);
 
-    if (!M1->isRunning()) {
+      delay(200);
 
-      if (M1->getCurrentPosition() == -CORSA) {
-        M1->moveTo(CORSA);
-      }
-
-      else if (M1->getCurrentPosition() == CORSA) {
-        M1->moveTo(-CORSA);
-      }
-
-      else if (M1->getCurrentPosition() == 0) {
-        M1->moveTo(-CORSA);
-      } 
-
-      else {
-        M1->moveTo(0);
-      }
+      goToHome_tendipelle();
 
     }
 
-
-    if (!M2->isRunning()) {
-
-      if (M2->getCurrentPosition() == -CORSA) {
-        M2->moveTo(CORSA);
-      }
-
-      else if (M2->getCurrentPosition() == CORSA) {
-        M2->moveTo(-CORSA);
-      }
-
-      else if (M2->getCurrentPosition() == 0) {
-        M2->moveTo(-CORSA);
-      }
-
-      else {
-        M2->moveTo(0);
-      }
-
-    }
+    M1->move(CORSA);
+    while(M1->isRunning()){};
+    M1->move(-CORSA);
+    while(M1->isRunning()){};
 
   } else {
     if (prima_uscita_tendipelle) {
@@ -183,22 +174,23 @@ void logica_tendipelle() {
       prima_volta_tendipelle = true;
 
       M1->stopMove();
-      M2->stopMove();
-      while((M1->isRunning()) || (M2->isRunning())){};
+      while(M1->isRunning()){};
       goToHome_tendipelle();
 
-      delay(1000);
+      delay(100);
 
-      digitalWrite(DIO11, HIGH);
+      digitalWrite(DIO11, LOW);
       digitalWrite(DIO14, LOW);
+      digitalWrite(DIO16, LOW);
+      digitalWrite(DIO10, LOW);
     }
   }
 }
 
 void accendi_bobina(uint8_t n) {
 
-  if (prima_volta) {
-    prima_volta = false;
+  if (prima_volta_bobine) {
+    prima_volta_bobine = false;
     relay_write(0x00, 0xFF, false);
     delay(100);
     relay_write(0x00, 0xFF, false);
@@ -217,42 +209,66 @@ void accendi_bobina(uint8_t n) {
 
   if (nn < 16) {
     relay_write(1,nn,true);
-    delay(random(1000,4000));
+    delay(5000);
     relay_write(1,nn,false);
-    delay(500);
+    delay(2000);
   } else {
     relay_write(2,nn-16,true);
-    delay(random(1000,4000));
+    delay(5000);
     relay_write(2,nn-16,false);
-    delay(500);
+    delay(2000);
   }
 
 }
 
-void a_caso() {
+void logica_bobine() {
 
-  if (prima_volta) {
-    prima_volta = false;
-    relay_write(0x00, 0xFF, false);
-    delay(100);
-    relay_write(0x00, 0xFF, false);
-    delay(100);
-    relay_write(0x00, 0xFF, false);
-    delay(100);
-  }
+  if (digitalRead(ADIO1)) {
+  //if (true) {
+    if (prima_volta_bobine) {
+      prima_volta_bobine = false;
+      relay_write(0x00, 0xFF, false);
+      delay(100);
+      relay_write(0x00, 0xFF, false);
+      delay(100);
+      relay_write(0x00, 0xFF, false);
+      delay(100);
+      tOn = true;
+      tWait = 0;
+      digitalWrite(15, HIGH);
+    }
 
-  uint8_t bobina_scelta = random(24);
+    if ((millis() - tBobine) > tWait) {
+      tBobine = millis();
 
-  if (bobina_scelta < 16) {
-    relay_write(1,bobina_scelta,true);
-    delay(random(1000,4000));
-    relay_write(1,bobina_scelta,false);
-    delay(500);
+      if (tOn) {
+        bobina_scelta = random(24);
+        tOn = false;
+        tWait = (random(1000,4000));
+        if (bobina_scelta < 16) {
+          relay_write(1,bobina_scelta,true);
+        } else {
+          relay_write(2,bobina_scelta-16,true);
+        }
+      } else {
+        tOn = true;
+        tWait = 500;
+        if (bobina_scelta < 16) {
+          relay_write(1,bobina_scelta,false);
+        } else {
+          relay_write(2,bobina_scelta-16,false);
+        }
+      }
+    }
+
   } else {
-    relay_write(2,bobina_scelta-16,true);
-    delay(random(1000,4000));
-    relay_write(2,bobina_scelta-16,false);
-    delay(500);
+
+    if ((millis() - tUscitaBobine) > 1000) {
+      tUscitaBobine = millis();
+      relay_write(0x00, 0xFF, false);
+      digitalWrite(15, HIGH);
+    }
+    
   }
 
 }
@@ -283,5 +299,27 @@ void relay_write(uint8_t id_device, uint8_t id_relay, bool stato_relay) {
   for (uint8_t i=0; i<8; i++) {
     RS485.write(cmd[i]);
   }
+
+}
+
+void goToHome_tendipelle() {
+
+  bool exit_flag = false;
+  
+  M1->runBackward();
+
+  while (!exit_flag) {
+
+    if (digitalRead(ADIO3)) {
+      M1->forceStop();
+      delay(100);
+      M1->move(ZERO_OFFSET_TENDIPELLE);
+      while (M1->isRunning()) {}
+      exit_flag = true;
+    }
+
+  }
+
+  M1->setCurrentPosition(0);
 
 }

@@ -93,12 +93,12 @@ void setup() {
 #define OFFSET_A -1000
 #define OFFSET_B 0
 #define OFFSET_C 0
-#define OFFSET_D -800
+#define OFFSET_D -900
 #define OFFSET_E 0
 
 #define TIME_OFFSET 1600
 
-long CORSA = 300;
+long CORSA = 600;
 
 bool go_A = false, go_B = false, go_C = false, go_D = false, go_E = false;
 
@@ -137,15 +137,31 @@ void check_input() {
       pinMode(MOT_D_EN, INPUT);
       pinMode(MOT_E_EN, INPUT);
 
-      delay(500);
-
-      mot_A->setCurrentPosition(0);
+      delay(100);
+     
       mot_B->setCurrentPosition(0);
       mot_C->setCurrentPosition(0);
-      mot_D->setCurrentPosition(0);
       mot_E->setCurrentPosition(0);
 
-      delay(1000);
+      delay(100);
+
+      mot_A->move(OFFSET_A);
+      mot_D->move(OFFSET_D);
+
+      while (mot_D->isRunning() || mot_A->isRunning()){};
+
+      delay(100);
+
+      mot_A->setCurrentPosition(0);
+      mot_D->setCurrentPosition(0);
+
+      delay(100);
+
+      mot_A->move(CORSA/2);
+      mot_B->move(CORSA/2);
+      mot_C->move(CORSA/2);
+      mot_D->move(CORSA/2);
+      mot_E->move(CORSA/2);
 
 
     } else {
@@ -158,21 +174,13 @@ void check_input() {
       go_D = false;
       go_E = false;
 
-      mot_A->moveTo(OFFSET_A);
-      mot_B->moveTo(OFFSET_B);
-      mot_C->moveTo(OFFSET_C);
-      mot_D->moveTo(OFFSET_D);
-      mot_E->moveTo(OFFSET_E);
+      mot_A->moveTo(-OFFSET_A);
+      mot_B->moveTo(0);
+      mot_C->moveTo(0);
+      mot_D->moveTo(-OFFSET_D);
+      mot_E->moveTo(0);
       
-      while (mot_D->isRunning() || mot_A->isRunning());
-
-      delay(500);
-
-      mot_A->move(-OFFSET_A);
-      mot_D->move(-OFFSET_D);
-
-
-      while (mot_D->isRunning() || mot_A->isRunning());
+      while (mot_D->isRunning() || mot_A->isRunning() || mot_E->isRunning() || mot_B->isRunning() || mot_C->isRunning()){};
 
       delay(100);
 
@@ -193,125 +201,56 @@ void check_input() {
 void logic() {
 
   if (go_A) {
-
     if (!mot_A->isRunning()) {
-
-      if (mot_A->getCurrentPosition() == 0) { 
-        mot_A->move(OFFSET_A);
-        T_MOT_A = millis();
+      if (mot_A->getCurrentPosition() < 0) {
+        mot_A->move(CORSA);
+      } else {
+        mot_A->move(-CORSA);
       }
-
-      else if (mot_A->getCurrentPosition() == OFFSET_A) { 
-        if ((millis() - T_MOT_A) > TIME_OFFSET) {
-          mot_A->moveTo(OFFSET_A + CORSA);
-        }
-      }
-
-      else if (mot_A->getCurrentPosition() == (OFFSET_A + CORSA)) {
-        mot_A->moveTo(OFFSET_A - CORSA);
-      }
-
-      else if (mot_A->getCurrentPosition() == (OFFSET_A - CORSA)) {
-        mot_A->moveTo(OFFSET_A + CORSA);
-      }
-
     }
-
-  } 
+  }
 
   if (go_B) {
-
     if (!mot_B->isRunning()) {
-
-      if (mot_B->getCurrentPosition() == 0) { 
+      if (mot_B->getCurrentPosition() < 0) {
         mot_B->move(CORSA);
-        T_MOT_B = millis();
+      } else {
+        mot_B->move(-CORSA);
       }
-
-      else if (mot_B->getCurrentPosition() == (OFFSET_B + CORSA)) {
-        if ((millis() - T_MOT_B) > TIME_OFFSET) {
-          mot_B->moveTo(OFFSET_B - CORSA);
-        } 
-      }
-
-      else if (mot_B->getCurrentPosition() == (OFFSET_B - CORSA)) {
-        mot_B->moveTo(OFFSET_B + CORSA);
-      }
-
     }
-
   }
 
   if (go_C) {
-
     if (!mot_C->isRunning()) {
-
-      if (mot_C->getCurrentPosition() == 0) { 
+      if (mot_C->getCurrentPosition() < 0) {
         mot_C->move(CORSA);
-        T_MOT_C = millis();
+      } else {
+        mot_C->move(-CORSA);
       }
-
-      else if (mot_C->getCurrentPosition() == (OFFSET_C + CORSA)) {
-        if ((millis() - T_MOT_C) > TIME_OFFSET) {
-          mot_C->moveTo(OFFSET_C - CORSA);
-        } 
-      }
-
-      else if (mot_C->getCurrentPosition() == (OFFSET_C - CORSA)) {
-        mot_C->moveTo(OFFSET_B + CORSA);
-      }
-
     }
-
   }
 
   if (go_D) {
-
     if (!mot_D->isRunning()) {
-
-      if (mot_D->getCurrentPosition() == 0) { 
-        mot_D->move(OFFSET_D);
-        T_MOT_D = millis();
+      if (mot_D->getCurrentPosition() < 0) {
+        mot_D->move(CORSA);
+      } else {
+        mot_D->move(-CORSA);
       }
-
-      else if (mot_D->getCurrentPosition() == OFFSET_D) { 
-        if ((millis() - T_MOT_D) > TIME_OFFSET) {
-          mot_D->moveTo(OFFSET_D + CORSA);
-        }
-      }
-
-      else if (mot_D->getCurrentPosition() == (OFFSET_D + CORSA)) {
-        mot_D->moveTo(OFFSET_D - CORSA);
-      }
-
-      else if (mot_D->getCurrentPosition() == (OFFSET_D - CORSA)) {
-        mot_D->moveTo(OFFSET_D + CORSA);
-      }
-
     }
-
-  } 
+  }
 
   if (go_E) {
-
     if (!mot_E->isRunning()) {
-
-      if (mot_E->getCurrentPosition() == 0) { 
+      if (mot_E->getCurrentPosition() < 0) {
         mot_E->move(CORSA);
-        T_MOT_E = millis();
+      } else {
+        mot_E->move(-CORSA);
       }
-
-      else if (mot_E->getCurrentPosition() == (OFFSET_E + CORSA)) { 
-        if ((millis() - T_MOT_E) > TIME_OFFSET) {
-          mot_E->moveTo(OFFSET_E - CORSA);
-        }
-      }
-
-      else if (mot_E->getCurrentPosition() == (OFFSET_E - CORSA)) {
-        mot_E->moveTo(OFFSET_E + CORSA);
-      }
-
     }
-
   } 
+
+ 
 }
+
+
