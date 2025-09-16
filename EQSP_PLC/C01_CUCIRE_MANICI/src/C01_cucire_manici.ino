@@ -33,10 +33,10 @@
 #define M_CUCIRE_SPEED  500
 #define M_CUCIRE_ACC    500
 
-#define M_MANICI_SPEED  5000
-#define M_MANICI_ACC    5000
+#define M_MANICI_SPEED  25000
+#define M_MANICI_ACC    25000
 
-#define CORSA_MANICI    25000
+#define CORSA_MANICI    125000
 #define ZERO_OFFSET_MANICI 250
 
 

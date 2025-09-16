@@ -38,16 +38,16 @@ HardwareSerial RS485(2);
 
 #include "FastAccelStepper.h"
 
-#define M1_SPEED  1000
-#define M1_ACC    600
+#define M1_SPEED  1800
+#define M1_ACC    1200
 
-#define M2_SPEED  1000
-#define M2_ACC    600
+#define M2_SPEED  1800
+#define M2_ACC    1200
 
-#define M3_SPEED  1000
-#define M3_ACC    600
+#define M3_SPEED  1800
+#define M3_ACC    1200
 
-#define ZERO_OFFSET 10
+#define ZERO_OFFSET 50
 
 #define CORSA_M1 1700
 #define CORSA_M2 1700
@@ -87,7 +87,10 @@ void setup() {
 
   // DRIVER OUTPUT
   pinMode(DIO15, OUTPUT);
-  digitalWrite(DIO15, LOW);
+  digitalWrite(DIO15, HIGH);
+
+  pinMode(DIO16, OUTPUT);
+  digitalWrite(DIO16, LOW);
 
   engine.init();
 
@@ -183,7 +186,7 @@ void loop() {
 
   // test_motorino(1);
 
-  test_alzata(1);
+  //test_alzata(1);
 
   // sequenza_3_ottimizzata();
 
@@ -193,6 +196,28 @@ void loop() {
   // delay(2000);
   // relay_single_write(1,1,false);
   // delay(2000);
+
+  if (digitalRead(ADIO1)) {
+    if (prima_volta) {
+      prima_volta = false;
+      prima_spento = true;
+      digitalWrite(DIO15, LOW);
+      digitalWrite(DIO16, HIGH);
+
+    }
+
+    test_alzata_in3();
+
+  } else {
+    if (prima_spento) {
+      prima_spento = false;
+      prima_volta = true;
+      digitalWrite(DIO15, HIGH);
+      digitalWrite(DIO16, LOW);
+    }
+  }
+
+  
 
 }
 
@@ -282,13 +307,13 @@ void test_alzata_in3() {
         M1->move(-CORSA_M1);
         while(M1->isRunning()){};
 
-      } else if (AS == 2) {
+      } else if (AS == 1) {
         M2->move(CORSA_M2);
         while(M2->isRunning()){};
         M2->move(-CORSA_M2);
         while(M2->isRunning()){};
 
-      } else if (AS == 3) {
+      } else if (AS == 2) {
         M3->move(CORSA_M3);
         while(M3->isRunning()){};
         M3->move(-CORSA_M3);
