@@ -196,6 +196,134 @@ void loop() {
 
 }
 
+int S = -1;
+unsigned long T = 0;
+bool P = true, E = false;
+int C = 0;
+uint8_t MS[3]{0};
+int AS = -1, old_AS = -1;
+
+void test_alzata_in3() {
+
+  // AZZERA
+  if (S == -1) {
+
+    // spegni tutti i relay e aspetta 5 secondi
+    Serial.println("SPENGO TUTTO");
+    relay_single_write(0x00, 0xFF, false);
+    Serial.println("GO TO HOME AND WAIT 5 SEC");
+    goToHome();
+    delay(ATTESA_ATTUATORE);
+
+    S = 0;
+    P = true;
+  }
+
+  // INSERISCI
+  else if (S == 0) {
+    if (P) {
+      P = false;
+      Serial.println("INSERT AND WAIT");
+
+      AS = random(3);
+      while (AS == old_AS) {
+        AS = random(3);
+      }
+      old_AS = AS;
+      Serial.print("ASSE ");
+      Serial.println(AS);
+
+      if (AS == 2) {
+        for (uint8_t j=0; j<3; j++) {
+          MS[j] = random(13);
+          while ((MS[j] == 0) || (MS[j] == 3) || (MS[j] == 6) || (MS[j] == 7)) {
+            MS[j] = random(13);
+          }
+        }
+      } else {
+        MS[0] = random(13);
+        MS[1] = random(13);
+        MS[2] = random(13);
+      }
+
+      Serial.print("MARTELLI NUMERO: ");
+
+      for (uint8_t i=0; i<3; i++) {
+        uint8_t ms = MS[i] + AS*13;
+        Serial.print(ms);
+        Serial.print(" ");
+        relay_double_write(modulo_ws(ms), numero_relay(ms+1), true);
+        delay(100);
+      }
+      Serial.println();
+
+      T = millis();
+      
+    }
+
+    if ((millis() - T) > ATTESA_ATTUATORE) {
+      S = 1;
+      P = true;
+    }
+
+  }
+
+  // SALI SCENDI
+  else if (S == 1) {
+    if (P) {
+      P = false;
+      C = 0;
+    }
+
+    if (C < 3) {
+      if (AS == 0) {
+        M1->move(CORSA_M1);
+        while(M1->isRunning()){};
+        M1->move(-CORSA_M1);
+        while(M1->isRunning()){};
+
+      } else if (AS == 2) {
+        M2->move(CORSA_M2);
+        while(M2->isRunning()){};
+        M2->move(-CORSA_M2);
+        while(M2->isRunning()){};
+
+      } else if (AS == 3) {
+        M3->move(CORSA_M3);
+        while(M3->isRunning()){};
+        M3->move(-CORSA_M3);
+        while(M3->isRunning()){};
+
+      }
+      
+      C++;
+    } else {
+      S = 2;
+      P = true;
+    }
+
+  }
+
+  // TOGLI PERNI
+  else if (S == 2) {
+    if (P) {
+      P = false;
+      for (uint8_t i=0; i<3; i++) {
+        uint8_t ms = MS[i] + AS*13;
+        relay_double_write(modulo_ws(ms), numero_relay(ms+1), false);
+        delay(100);
+      }
+      T = millis();
+    }
+
+    S = 0;
+    P = true;
+
+  }
+
+
+}
+
 void test_alzata(uint8_t n) {
 
   if (prima_volta) {
