@@ -175,6 +175,13 @@ uint8_t n_mar[] = {0, 0, 0};
 bool prima_volta = true, prima_spento = true;
 bool avvio_gioco = false;
 
+int S = -1;
+unsigned long T = 0;
+bool P = true, E = false;
+int C = 0;
+uint8_t MS[3]{0};
+int AS = -1, old_AS = -1;
+
 void loop() {
 
   //test_motore_1();
@@ -221,13 +228,6 @@ void loop() {
   }
 
 }
-
-int S = -1;
-unsigned long T = 0;
-bool P = true, E = false;
-int C = 0;
-uint8_t MS[3]{0};
-int AS = -1, old_AS = -1;
 
 void test_alzata_in3() {
 
@@ -305,6 +305,10 @@ void test_alzata_in3() {
     if (P) {
       P = false;
       C = 0;
+    }
+
+    if (!avvio_gioco) {
+      C = 3;
     }
 
     if (C < 3) {

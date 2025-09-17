@@ -105,7 +105,7 @@ void setup() {
   delay(50);
   ledcWriteTone(0, 0);
 
-  delay(1000);
+  delay(3000);
 
 }
 
@@ -122,30 +122,14 @@ unsigned long tUscitaBobine = 0;
 
 void loop() {
 
- //logica_bobine();
+ logica_bobine();
 
   // for (uint8_t i=1; i<25; i++) {
   //   accendi_bobina(i);
   // }
   
-//logica_tendipelle();
+  logica_tendipelle();
 
-  delay(1000);
-  Serial.println("zero");
-  goToHome_tendipelle();
-
-  while (millis() < 10000) {
-    if (M1->getCurrentPosition() == 0) {
-      Serial.println("CORSA");
-      M1->moveTo(CORSA);
-    }
-    if (M1->getCurrentPosition() == CORSA) {
-      Serial.println("ZERO");
-      M1->moveTo(0);
-    }
-  }
-  while(M1->isRunning()){};
-  Serial.println("fine");
 
 
 }
@@ -169,7 +153,12 @@ void logica_tendipelle() {
 
     }
 
-    
+    if (M1->getCurrentPosition() == 0) {
+      M1->moveTo(CORSA);
+    }
+    if (M1->getCurrentPosition() == CORSA) {
+      M1->moveTo(0);
+    }
 
   } else {
     if (prima_uscita_tendipelle) {
@@ -315,6 +304,10 @@ void relay_write(uint8_t id_device, uint8_t id_relay, bool stato_relay) {
 }
 
 void goToHome_tendipelle() {
+
+  M1->setSpeedInHz(M1_SPEED/4);  
+  M1->setAcceleration(M1_ACC/4); 
+  M1->applySpeedAcceleration();
   
   M1->runBackward();
   while(!digitalRead(ADIO3)){};
@@ -323,5 +316,9 @@ void goToHome_tendipelle() {
   M1->move(ZERO_OFFSET_TENDIPELLE);
   while(M1->isRunning()){};
   M1->setCurrentPosition(0);
+
+  M1->setSpeedInHz(M1_SPEED);  
+  M1->setAcceleration(M1_ACC); 
+  M1->applySpeedAcceleration();
 
 }
