@@ -7,6 +7,8 @@
 
 #define NUM_STRIP 15
 
+#define MARIUS_PIN 18
+
 #define NUM_LEDS_1    51
 #define NUM_LEDS_2    134
 #define NUM_LEDS_3    164
@@ -75,24 +77,33 @@ void setup() {
 
   delay(300); // 3 second delay for boot recovery, and a moment of silence
 
-  Serial.begin(9600);
+  Serial.begin(115200);
   delay(300);
 
-  FastLED.addLeds<LED_TYPE,4,COLOR_ORDER>(leds_1, NUM_LEDS_1).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,5,COLOR_ORDER>(leds_2, NUM_LEDS_2).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,18,COLOR_ORDER>(leds_3, NUM_LEDS_3).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,19,COLOR_ORDER>(leds_4, NUM_LEDS_4).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,20,COLOR_ORDER>(leds_5, NUM_LEDS_5).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,21,COLOR_ORDER>(leds_6, NUM_LEDS_6).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,22,COLOR_ORDER>(leds_7, NUM_LEDS_7).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,23,COLOR_ORDER>(leds_8, NUM_LEDS_8).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,25,COLOR_ORDER>(leds_9, NUM_LEDS_9).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,26,COLOR_ORDER>(leds_10, NUM_LEDS_10).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,27,COLOR_ORDER>(leds_11, NUM_LEDS_11).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,32,COLOR_ORDER>(leds_12, NUM_LEDS_12).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,33,COLOR_ORDER>(leds_13, NUM_LEDS_13).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,16,COLOR_ORDER>(leds_14, NUM_LEDS_14).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,17,COLOR_ORDER>(leds_15, NUM_LEDS_15).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,2,COLOR_ORDER>(leds_1, NUM_LEDS_1).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,3,COLOR_ORDER>(leds_2, NUM_LEDS_2).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,4,COLOR_ORDER>(leds_3, NUM_LEDS_3).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,5,COLOR_ORDER>(leds_4, NUM_LEDS_4).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,6,COLOR_ORDER>(leds_5, NUM_LEDS_5).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,7,COLOR_ORDER>(leds_6, NUM_LEDS_6).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,8,COLOR_ORDER>(leds_7, NUM_LEDS_7).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,9,COLOR_ORDER>(leds_8, NUM_LEDS_8).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,10,COLOR_ORDER>(leds_9, NUM_LEDS_9).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,11,COLOR_ORDER>(leds_10, NUM_LEDS_10).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,12,COLOR_ORDER>(leds_11, NUM_LEDS_11).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,13,COLOR_ORDER>(leds_12, NUM_LEDS_12).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,14,COLOR_ORDER>(leds_13, NUM_LEDS_13).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,15,COLOR_ORDER>(leds_14, NUM_LEDS_14).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,16,COLOR_ORDER>(leds_15, NUM_LEDS_15).setTemperature(Candle);
+
+  FastLED.setBrightness(255);
+
+  delay(100);
+
+  pinMode(MARIUS_PIN, INPUT_PULLUP);
+
+  pinMode(17, OUTPUT);   // AUDIO PIN
+  digitalWrite(17, LOW);
 
 }
 
@@ -101,102 +112,188 @@ unsigned long tLed[NUM_STRIP]{0};
 int cVal[NUM_STRIP]{0};
 bool dir[NUM_STRIP]{true};
 bool ena[NUM_STRIP]{false};
+int indexVal[NUM_STRIP]{0};
 
 unsigned long tSequence = 0;
+unsigned long tShow = 0;
 
 int idx = 0;
+
+uint8_t seq_figure[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14};
+
+bool prima_volta = true;
+bool prima_uscita = true;
+
+unsigned long tSpento = 0;
+int next_fig = 0; 
+bool check_next_fig[NUM_STRIP]{true};
  
 void loop()
 {
+  
+  if (analogRead(MARIUS_PIN) < 512) {
+  //if (true) {
+    if (prima_volta) {
+      prima_volta = false;
+      prima_uscita = true;
+      random_sequence();
+      digitalWrite(17, HIGH);
+    }
 
-  // test_all_leds_red();
+    sequence_snake();
 
-  // sequence();
+    if ((millis() - tShow) > 40) {
+      tShow = millis();
+      FastLED.show();
+    }
+  } else {
 
-}
+    if (prima_uscita) {
+      prima_uscita = false;
+      prima_volta = true;
+      tSpento = millis();
+      digitalWrite(17, LOW);
+    }
 
-void test_all_leds_red() {
+    if ((millis() - tSpento) < 5000) {
+      if ((millis() - tShow) > 50) {
+        tShow = millis();
+        for (uint8_t i=0; i<NUM_STRIP; i++) {
+           fadeToBlackBy(leds[i], NUM_LEDS[i], 64);
+        }
+        FastLED.show();
+      }
+    } else {
+      for (uint8_t i=0; i<NUM_STRIP; i++) {
+         fill_solid(leds[i], NUM_LEDS[i], CRGB::Black);
+      }
+      FastLED.show();
+      delay(200);
+    }
 
-  FastLED.setBrightness(100);
-
-  fill_solid(leds_1, NUM_LEDS_1, CRGB::Red);
-  fill_solid(leds_2, NUM_LEDS_2, CRGB::Red);
-  fill_solid(leds_3, NUM_LEDS_3, CRGB::Red);
-  fill_solid(leds_4, NUM_LEDS_4, CRGB::Red);
-  fill_solid(leds_5, NUM_LEDS_5, CRGB::Red);
-  fill_solid(leds_6, NUM_LEDS_6, CRGB::Red);
-  fill_solid(leds_7, NUM_LEDS_7, CRGB::Red);
-  fill_solid(leds_8, NUM_LEDS_8, CRGB::Red);
-  fill_solid(leds_9, NUM_LEDS_9, CRGB::Red);
-  fill_solid(leds_10, NUM_LEDS_10, CRGB::Red);
-  fill_solid(leds_11, NUM_LEDS_11, CRGB::Red);
-  fill_solid(leds_12, NUM_LEDS_12, CRGB::Red);
-  fill_solid(leds_13, NUM_LEDS_13, CRGB::Red);
-  fill_solid(leds_14, NUM_LEDS_14, CRGB::Red);
-  fill_solid(leds_15, NUM_LEDS_15, CRGB::Red);
-
-  delay(500);
-
-  fill_solid(leds_1, NUM_LEDS_1, CRGB::Black);
-  fill_solid(leds_2, NUM_LEDS_2, CRGB::Black);
-  fill_solid(leds_3, NUM_LEDS_3, CRGB::Black);
-  fill_solid(leds_4, NUM_LEDS_4, CRGB::Black);
-  fill_solid(leds_5, NUM_LEDS_5, CRGB::Black);
-  fill_solid(leds_6, NUM_LEDS_6, CRGB::Black);
-  fill_solid(leds_7, NUM_LEDS_7, CRGB::Black);
-  fill_solid(leds_8, NUM_LEDS_8, CRGB::Black);
-  fill_solid(leds_9, NUM_LEDS_9, CRGB::Black);
-  fill_solid(leds_10, NUM_LEDS_10, CRGB::Black);
-  fill_solid(leds_11, NUM_LEDS_11, CRGB::Black);
-  fill_solid(leds_12, NUM_LEDS_12, CRGB::Black);
-  fill_solid(leds_13, NUM_LEDS_13, CRGB::Black);
-  fill_solid(leds_14, NUM_LEDS_14, CRGB::Black);
-  fill_solid(leds_15, NUM_LEDS_15, CRGB::Black);
-
-  delay(500);
+  }
+  
 
 }
 
-void sequence() {
+void random_sequence() {
 
-  if ((millis() - tSequence) > 4000) {
+  for (int8_t i=14; i>0; i--) {
+    uint8_t j=random(i+1);
+
+    uint8_t temp = seq_figure[i];
+    seq_figure[i] = seq_figure[j];
+    seq_figure[j] = temp;
+  }
+
+}
+
+
+void sequence_pulse() {
+
+  if ((millis() - tSequence) > 1800) {
     tSequence = millis();
 
-    ena[idx] = true;
-    dir[idx] = true;
-    cVal[idx] = 0;
+    uint8_t n = seq_figure[idx];
+    Serial.print("accendo ");
+    Serial.println(n);
+
+    ena[n] = true;
+    dir[n] = true;
+    cVal[n] = 0;
+    indexVal[n] = 0;
 
     idx++;
 
     if (idx >= 15) {
+      random_sequence();
       idx = 0;
     }
 
   }
 
 
-  for (uint8_t n=0; n<NUM_STRIP; n++) {
-    if (ena[n]) {
-      if ((millis() - tLed[n]) > 8) {
-        tLed[n] = millis();
+  for (uint8_t i=0; i<NUM_STRIP; i++) {
 
-        if (dir[n]) {
-          if (cVal[n] < 256) {
-            cVal[n] = cVal[n] + 1;
-          } else {
-            cVal[n] = 255;
-            dir[n] = !dir[n];
+    if (ena[i]) {
+      if ((millis() - tLed[i]) > 16) {
+        tLed[i] = millis();
+
+        if (dir[i]) {
+          cVal[i]+=3;
+          if (cVal[i]>255) {
+            cVal[i]=255;
+            dir[i] = false;
+            Serial.print("apice ");
+            Serial.println(i);
           }
         } else {
-          if (cVal[n] > 0) {
-            cVal[n] = cVal[n] - 1;
-          } else {
-            cVal[n] = 0;
-            ena[n] = false;
+          cVal[i]-=3;
+          if (cVal[i]<0) {
+            cVal[i]=0;
+            ena[i]=false;
+            dir[i]=true;
+            Serial.print("Spengo ");
+            Serial.println(i);
           }
         }
 
-        fill_solid(leds[n],NUM_LEDS[n],CRGB(cVal[n],cVal[n],cVal[n]));
+        fill_solid(leds[i],NUM_LEDS[i],CRGB(cVal[i],cVal[i],cVal[i]));
+      }
+    }
+  }
+
+}
+
+void sequence_snake() {
+
+  if (next_fig < 2) {
+    next_fig++;
+    
+    uint8_t n = seq_figure[idx];
+    Serial.print("accendo ");
+    Serial.println(n);
+
+    ena[n] = true;
+    dir[n] = true;
+    cVal[n] = 0;
+    indexVal[n] = 0;
+    check_next_fig[n] = true;
+
+    idx++;
+
+    if (idx >= 15) {
+      random_sequence();
+      idx = 0;
+    }
+
+  }
+
+
+  for (uint8_t i=0; i<NUM_STRIP; i++) {
+
+    if (ena[i]) {
+      if ((millis() - tLed[i]) > 32) {
+        tLed[i] = millis();
+
+        leds[i][indexVal[i]] = CRGB::White;
+        fadeToBlackBy(leds[i],NUM_LEDS[i],20);
+        indexVal[i]++;
+        if (indexVal[i] >= NUM_LEDS[i] - 1) {
+          indexVal[i] = 0;
+          ena[i] = false;
+          Serial.print("spengo ");
+          Serial.println(i);
+          fill_solid(leds[i],NUM_LEDS[i],CRGB::Black);
+        }
+        else if (check_next_fig[i]) {
+          if (indexVal[i] >= NUM_LEDS[i] * 0.7) {
+            next_fig = 0;
+            check_next_fig[i] = false;
+            Serial.print("3/4 ");
+            Serial.println(i);
+          }
+        }
       }
     }
   }
