@@ -7,7 +7,8 @@
 
 #define NUM_STRIP 15
 
-#define MARIUS_PIN 18
+#define MARIUS_PIN 4
+#define AUDIO_PIN 5
 
 #define NUM_LEDS_1    51
 #define NUM_LEDS_2    134
@@ -82,9 +83,9 @@ void setup() {
 
   FastLED.addLeds<LED_TYPE,2,COLOR_ORDER>(leds_1, NUM_LEDS_1).setTemperature(Candle);
   FastLED.addLeds<LED_TYPE,3,COLOR_ORDER>(leds_2, NUM_LEDS_2).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,4,COLOR_ORDER>(leds_3, NUM_LEDS_3).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,5,COLOR_ORDER>(leds_4, NUM_LEDS_4).setTemperature(Candle);
-  FastLED.addLeds<LED_TYPE,6,COLOR_ORDER>(leds_5, NUM_LEDS_5).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,17,COLOR_ORDER>(leds_3, NUM_LEDS_3).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,18,COLOR_ORDER>(leds_4, NUM_LEDS_4).setTemperature(Candle);
+  FastLED.addLeds<LED_TYPE,19,COLOR_ORDER>(leds_5, NUM_LEDS_5).setTemperature(Candle);
   FastLED.addLeds<LED_TYPE,7,COLOR_ORDER>(leds_6, NUM_LEDS_6).setTemperature(Candle);
   FastLED.addLeds<LED_TYPE,8,COLOR_ORDER>(leds_7, NUM_LEDS_7).setTemperature(Candle);
   FastLED.addLeds<LED_TYPE,9,COLOR_ORDER>(leds_8, NUM_LEDS_8).setTemperature(Candle);
@@ -100,10 +101,10 @@ void setup() {
 
   delay(100);
 
-  pinMode(MARIUS_PIN, INPUT_PULLUP);
+  pinMode(MARIUS_PIN, INPUT);
 
-  pinMode(17, OUTPUT);   // AUDIO PIN
-  digitalWrite(17, LOW);
+  pinMode(AUDIO_PIN, OUTPUT);   // AUDIO PIN
+  digitalWrite(AUDIO_PIN, LOW);
 
 }
 
@@ -131,13 +132,13 @@ bool check_next_fig[NUM_STRIP]{true};
 void loop()
 {
   
-  if (analogRead(MARIUS_PIN) < 512) {
+  if (digitalRead(MARIUS_PIN)) {
   //if (true) {
     if (prima_volta) {
       prima_volta = false;
       prima_uscita = true;
       random_sequence();
-      digitalWrite(17, HIGH);
+      digitalWrite(AUDIO_PIN, HIGH);
     }
 
     sequence_snake();
@@ -152,7 +153,7 @@ void loop()
       prima_uscita = false;
       prima_volta = true;
       tSpento = millis();
-      digitalWrite(17, LOW);
+      digitalWrite(AUDIO_PIN, LOW);
     }
 
     if ((millis() - tSpento) < 5000) {
