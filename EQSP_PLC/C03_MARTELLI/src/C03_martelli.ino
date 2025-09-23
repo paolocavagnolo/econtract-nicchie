@@ -38,20 +38,20 @@ HardwareSerial RS485(2);
 
 #include "FastAccelStepper.h"
 
-#define M1_SPEED  1800
-#define M1_ACC    1200
+#define M1_SPEED  2500
+#define M1_ACC    1600
 
-#define M2_SPEED  1800
-#define M2_ACC    1200
+#define M2_SPEED  2500
+#define M2_ACC    1600
 
-#define M3_SPEED  1800
-#define M3_ACC    1200
+#define M3_SPEED  2500
+#define M3_ACC    1600
 
 #define ZERO_OFFSET 50
 
-#define CORSA_M1 1700
-#define CORSA_M2 1700
-#define CORSA_M3 1700
+#define CORSA_M1 2200
+#define CORSA_M2 2200
+#define CORSA_M3 2200
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *M1 = NULL;
@@ -138,7 +138,11 @@ void setup() {
 
   delay(1000);
 
+  Serial.println("SPENGO TUTTO");
   spegni_tutti_relay();
+  Serial.println("GO TO HOME AND WAIT 5 SEC");
+  goToHome();
+  delay(ATTESA_ATTUATORE);
 
 }
 
@@ -235,11 +239,11 @@ void test_alzata_in3() {
   if (S == -1) {
 
     // spegni tutti i relay e aspetta 5 secondi
-    Serial.println("SPENGO TUTTO");
-    relay_single_write(0x00, 0xFF, false);
-    Serial.println("GO TO HOME AND WAIT 5 SEC");
-    goToHome();
-    delay(ATTESA_ATTUATORE);
+    // Serial.println("SPENGO TUTTO");
+    // relay_single_write(0x00, 0xFF, false);
+    // Serial.println("GO TO HOME AND WAIT 5 SEC");
+    // goToHome();
+    // delay(ATTESA_ATTUATORE);
 
     if (avvio_gioco) {
       S = 0;
