@@ -62,6 +62,15 @@ uint8_t STATE = 0; // 0 REMOTE - 1 AUTO - 2 MAN
 
 #define ATTESA_ATTUATORE 5000
 
+void spegni_tutti_relay() {
+  relay_single_write(0x00, 0xFF, false);
+  delay(300);
+  relay_single_write(0x00, 0xFF, false);
+  delay(300);
+  relay_single_write(0x00, 0xFF, false);
+  delay(300);
+}
+
 void setup() {
 
   delay(1000);
@@ -78,6 +87,7 @@ void setup() {
   pinMode(ADIO2, INPUT);  // FINECORSA MOT 1
   pinMode(ADIO3, INPUT);  // FINECORSA MOT 2
   pinMode(ADIO4, INPUT);  // FINECORSA MOT 3
+  pinMode(ADIO5, INPUT);
 
   // RS485
   RS485.begin(9600, SERIAL_8N1, RS485_DI, RS485_RO);
@@ -136,24 +146,12 @@ void setup() {
   delay(50);
   ledcWriteTone(0, 0);
 
-  delay(1000);
-
-  Serial.println("SPENGO TUTTO");
-  spegni_tutti_relay();
-  Serial.println("GO TO HOME AND WAIT 5 SEC");
-  goToHome();
-  delay(ATTESA_ATTUATORE);
+  delay(3000);
 
 }
 
-void spegni_tutti_relay() {
-  relay_single_write(0x00, 0xFF, false);
-  delay(100);
-  relay_single_write(0x00, 0xFF, false);
-  delay(100);
-  relay_single_write(0x00, 0xFF, false);
-  delay(100);
-}
+bool prima_prima = true;
+
 
 // WAVESHARE RELAY:
 // M1: 0 - 15 : 0 - 15
@@ -209,8 +207,19 @@ void loop() {
   // relay_single_write(1,1,false);
   // delay(2000);
 
-  if (digitalRead(ADIO1)) {
+  
+  if (prima_prima) {
+    prima_prima = false;
+    Serial.println("SPENGO TUTTO");
+    spegni_tutti_relay();
+    Serial.println("GO TO HOME AND WAIT 5 SEC");
+    goToHome();
+    delay(ATTESA_ATTUATORE);
+  }
+
+  if (analogRead(ADIO1) > 4000) {
     if (prima_volta) {
+      Serial.println("PARTO!");
       prima_volta = false;
       prima_spento = true;
       avvio_gioco = true;
@@ -224,9 +233,12 @@ void loop() {
 
   } else {
     if (prima_spento) {
+      Serial.println("FINE");
       prima_spento = false;
       prima_volta = true;
       avvio_gioco = false;
+      digitalWrite(DIO16, LOW);
+      analogWrite(DIO16, 0);
       delay(300);
     }
   }
@@ -961,20 +973,62 @@ uint8_t numero_relay(uint8_t num_mot) {
 
 void goToHome() {
 
+  unsigned long tStart = millis();
+  bool timeout = false;
+
   M1->runBackward();
-  while (!digitalRead(ADIO2)){};
+  while (analogRead(ADIO2) < 4000){
+    if ((millis() - tStart) > 10000) {
+      Serial.println("TIMEOUT 1");
+      timeout = true;
+      break;
+    }
+  };
+
+  if (!timeout) {
+    Serial.println("FINE CORSA 1 OK");
+  } else {
+    timeout = false;
+  }
+
   M1->forceStop();
   delay(100);
   M1->setCurrentPosition(0);
+  tStart = millis();
 
   M2->runBackward();
-  while (!digitalRead(ADIO3)){};
+  while (analogRead(ADIO3) < 4000){
+    if ((millis() - tStart) > 10000) {
+      Serial.println("TIMEOUT 2");
+      timeout = true;
+      break;
+    }
+  };
+
+  if (!timeout) {
+    Serial.println("FINE CORSA 2 OK");
+  } else {
+    timeout = false;
+  }
+
   M2->forceStop();
   delay(100);
   M2->setCurrentPosition(0);
+  tStart = millis();
 
   M3->runBackward();
-  while (!digitalRead(ADIO4)){};
+  while (analogRead(ADIO4) < 4000){
+    if ((millis() - tStart) > 10000) {
+      Serial.println("TIMEOUT 3");
+      timeout = true;
+      break;
+    }
+  };
+
+  if (!timeout) {
+    Serial.println("FINE CORSA 3 OK");
+  } 
+
   M3->forceStop();
   delay(100);
   M3->setCurrentPosition(0);

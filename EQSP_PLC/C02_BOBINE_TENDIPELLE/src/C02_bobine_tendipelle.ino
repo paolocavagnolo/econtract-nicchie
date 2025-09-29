@@ -115,14 +115,15 @@ bool prima_uscita_bobine = true;
 bool prima_volta_tendipelle = true;
 bool prima_uscita_tendipelle = true;
 
-uint8_t bobina_scelta;
+uint8_t bobina_scelta[3];
 unsigned long tWait = 0, tBobine = 0;
 bool tOn = true;
 unsigned long tUscitaBobine = 0;
 
 void loop() {
 
- logica_bobine();
+ logica_bobine_tre();
+ //logica_bobine_all();
 
   // for (uint8_t i=1; i<25; i++) {
   //   accendi_bobina(i);
@@ -134,6 +135,7 @@ void loop() {
 
 }
 
+bool mezza = true;
 
 void logica_tendipelle() {
 
@@ -215,11 +217,94 @@ void accendi_bobina(uint8_t n) {
 
 }
 
-void logica_bobine() {
+void logica_bobine_all() {
+
+  if (analogRead(ADIO1) > 4000) {
+
+    if (prima_volta_bobine) {
+      Serial.println("PARTO");
+      prima_volta_bobine = false;
+      prima_uscita_bobine = true;
+      relay_write(0x00, 0xFF, false);
+      delay(300);
+      relay_write(0x00, 0xFF, false);
+      delay(300);
+      tOn = true;
+      tWait = 0;
+      digitalWrite(15, HIGH);
+    }
+
+    if ((millis() - tBobine) > tWait) {
+      tBobine = millis();
+
+
+      if (tOn) {
+        tOn = false;
+        tWait = (random(1000,4000));
+
+        if (mezza) {
+          for (uint8_t i=0; i<12; i++) {
+            relay_write(1,i,true);
+            delay(150);
+          }
+        } else {
+          for (uint8_t i=12; i<16; i++) {
+            relay_write(1,i,true);
+            delay(150);
+          }
+          for (uint8_t i=16; i<24; i++) {
+            relay_write(2,i-16,true);
+            delay(150);
+          }
+        }
+        
+
+      } else {
+        tOn = true;
+        tWait = 500;
+        if (mezza) {
+          for (uint8_t i=0; i<12; i++) {
+            relay_write(1,i,false);
+            delay(150);
+          }
+        } else {
+          for (uint8_t i=12; i<16; i++) {
+            relay_write(1,i,false);
+            delay(150);
+          }
+          for (uint8_t i=16; i<24; i++) {
+            relay_write(2,i-16,false);
+            delay(150);
+          }
+        }
+        mezza = !mezza;
+      }
+    }
+    
+
+  } else {
+
+    if (prima_uscita_bobine) {
+      prima_uscita_bobine = false;
+      prima_volta_bobine = true;
+
+      relay_write(0x00, 0xFF, false);
+      delay(300);
+      relay_write(0x00, 0xFF, false);
+      delay(300);
+      digitalWrite(15, LOW);
+    }
+    
+  }
+
+}
+
+void logica_bobine_tre() {
 
   if (digitalRead(ADIO1)) {
 
     if (prima_volta_bobine) {
+      Serial.println("PARTO");
       prima_volta_bobine = false;
       prima_uscita_bobine = true;
       relay_write(0x00, 0xFF, false);
@@ -236,25 +321,50 @@ void logica_bobine() {
     if ((millis() - tBobine) > tWait) {
       tBobine = millis();
 
+
       if (tOn) {
-        bobina_scelta = random(24);
+        bobina_scelta[0] = random(24);
+        bobina_scelta[1] = random(24);
+
+        while (bobina_scelta[1] == bobina_scelta[0]) {
+          bobina_scelta[1] = random(24);
+        }
+        
+        bobina_scelta[2] = random(24);
+        while ((bobina_scelta[2] == bobina_scelta[1]) || (bobina_scelta[2] == bobina_scelta[0])) {
+          bobina_scelta[2] = random(24);
+        }
+
+        Serial.print( bobina_scelta[0]);
+        Serial.print( bobina_scelta[1]);
+        Serial.println( bobina_scelta[2]);
+
         tOn = false;
         tWait = (random(1000,4000));
-        if (bobina_scelta < 16) {
-          relay_write(1,bobina_scelta,true);
-        } else {
-          relay_write(2,bobina_scelta-16,true);
+
+        for (uint8_t i = 0; i<3; i++) {
+          if (bobina_scelta[i] < 16) {
+            relay_write(1,bobina_scelta[i],true);
+          } else {
+            relay_write(2,bobina_scelta[i]-16,true);
+          }
+          delay(200);
         }
+
       } else {
         tOn = true;
         tWait = 500;
-        if (bobina_scelta < 16) {
-          relay_write(1,bobina_scelta,false);
-        } else {
-          relay_write(2,bobina_scelta-16,false);
+        for (uint8_t i = 0; i<3; i++) {
+          if (bobina_scelta[i] < 16) {
+            relay_write(1,bobina_scelta[i],false);
+          } else {
+            relay_write(2,bobina_scelta[i]-16,false);
+          }
+          delay(200);
         }
       }
     }
+    
 
   } else {
 

@@ -30,8 +30,8 @@
 
 #include "FastAccelStepper.h"
 
-#define M_CUCIRE_SPEED  500
-#define M_CUCIRE_ACC    500
+#define M_CUCIRE_SPEED  1000
+#define M_CUCIRE_ACC    1000
 
 #define M_MANICI_SPEED  25000
 #define M_MANICI_ACC    25000
@@ -120,7 +120,6 @@ int S = -1;
 bool P = true, E = false;
 unsigned long T = 0;
 
-
 unsigned long tt = 0;
 int ponte = 0, old_ponte = 0;
 int fc = 0, old_fc = 0;
@@ -173,7 +172,7 @@ void logica_cucire() {
     if (P) {
       P = false;
       E = false;
-      M_CUCIRE->setSpeedInHz(500);
+      M_CUCIRE->setSpeedInHz(500*3);
       M_CUCIRE->applySpeedAcceleration();
       T = millis();
       Serial.println("parte!");
@@ -195,7 +194,7 @@ void logica_cucire() {
     if (P) {
       P = false;
       E = false;
-      M_CUCIRE->setSpeedInHz(1000);
+      M_CUCIRE->setSpeedInHz(1000*3);
       M_CUCIRE->applySpeedAcceleration();
       T = millis();
       Serial.println(S);
@@ -216,7 +215,7 @@ void logica_cucire() {
     if (P) {
       P = false;
       E = false;
-      M_CUCIRE->setSpeedInHz(1500);
+      M_CUCIRE->setSpeedInHz(1600*2);
       M_CUCIRE->applySpeedAcceleration();
       T = millis();
       Serial.println(S);
@@ -237,7 +236,7 @@ void logica_cucire() {
     if (P) {
       P = false;
       E = false;
-      M_CUCIRE->setSpeedInHz(250);
+      M_CUCIRE->setSpeedInHz(250*3);
       M_CUCIRE->applySpeedAcceleration();
       T = millis();
       Serial.println(S);
