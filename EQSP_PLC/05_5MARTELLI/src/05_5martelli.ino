@@ -32,7 +32,7 @@ uint8_t STATE = 0; // 0 REMOTE - 1 AUTO - 2 MAN
 
 void setup() {
 
-  delay(1000);
+  delay(100);
 
   // DEBUG
   Serial.begin(115200);
@@ -46,7 +46,8 @@ void setup() {
   pinMode(ADIO2, INPUT);  // MAN
 
   // ESP32 OUTPUT
-  pinMode(DIO9, OUTPUT);
+  pinMode(DIO9, OUTPUT); // relè accensione
+  pinMode(DIO10, OUTPUT); // segnale avvio
 
 
   // BUZZER 
@@ -101,7 +102,8 @@ void check_STATE() {
     f_MAN = false;
     STATE = 2;
 
-    digitalWrite(DIO9, LOW);
+    digitalWrite(DIO9, HIGH); // rele
+    digitalWrite(DIO10, LOW);  // segnale
 
   } else if ((f_AUTO) and (STATE != 2)) {
 
@@ -110,7 +112,9 @@ void check_STATE() {
 
     Serial.println("INIZIO LOOP");
 
-    digitalWrite(DIO9, HIGH);
+    digitalWrite(DIO9, HIGH); // rele
+    delay(1500);
+    digitalWrite(DIO10, HIGH); // segnale
 
   } else if (f_REM) {
     f_REM = false;
@@ -124,6 +128,8 @@ void check_STATE() {
     } else {
 
       STATE = 0;
+      digitalWrite(DIO10, LOW);
+      delay(4000);
       digitalWrite(DIO9, LOW);
 
     }

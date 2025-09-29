@@ -122,8 +122,8 @@ unsigned long tUscitaBobine = 0;
 
 void loop() {
 
- //logica_bobine_tre();
- logica_bobine_all();
+ logica_bobine_tre();
+ //logica_bobine_all();
 
   // for (uint8_t i=1; i<25; i++) {
   //   accendi_bobina(i);
@@ -219,7 +219,7 @@ void accendi_bobina(uint8_t n) {
 
 void logica_bobine_all() {
 
-  if (digitalRead(ADIO1)) {
+  if (analogRead(ADIO1) > 4000) {
 
     if (prima_volta_bobine) {
       Serial.println("PARTO");
@@ -245,13 +245,16 @@ void logica_bobine_all() {
         if (mezza) {
           for (uint8_t i=0; i<12; i++) {
             relay_write(1,i,true);
+            delay(150);
           }
         } else {
           for (uint8_t i=12; i<16; i++) {
-            relay_write(1,bobina_scelta[i],true);
+            relay_write(1,i,true);
+            delay(150);
           }
           for (uint8_t i=16; i<24; i++) {
             relay_write(2,i-16,true);
+            delay(150);
           }
         }
         
@@ -262,13 +265,16 @@ void logica_bobine_all() {
         if (mezza) {
           for (uint8_t i=0; i<12; i++) {
             relay_write(1,i,false);
+            delay(150);
           }
         } else {
           for (uint8_t i=12; i<16; i++) {
-            relay_write(1,bobina_scelta[i],false);
+            relay_write(1,i,false);
+            delay(150);
           }
           for (uint8_t i=16; i<24; i++) {
             relay_write(2,i-16,false);
+            delay(150);
           }
         }
         mezza = !mezza;

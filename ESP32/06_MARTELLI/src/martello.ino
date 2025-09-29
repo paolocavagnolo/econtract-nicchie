@@ -29,20 +29,21 @@ FastAccelStepper *mot_C = NULL;
 FastAccelStepper *mot_D = NULL;
 FastAccelStepper *mot_E = NULL;
 
-#define MOT_SPEED 8000
-#define MOT_ACC 16000
+#define MOT_SPEED 6000
+#define MOT_ACC 12000
 
 void setup() {
-	delay(1000);
+	delay(50);
 	
 	Serial.begin(9600);
-	delay(100);
+	delay(50);
 
-  pinMode(MOT_A_EN,OUTPUT);
-  pinMode(MOT_B_EN,OUTPUT);
-  pinMode(MOT_C_EN,OUTPUT);
-  pinMode(MOT_D_EN,OUTPUT);
-  pinMode(MOT_E_EN,OUTPUT);
+  //pinMode(MOT_A_EN,OUTPUT);
+  //pinMode(MOT_B_EN,OUTPUT);
+  //pinMode(MOT_C_EN,OUTPUT);
+  //pinMode(MOT_D_EN,OUTPUT);
+  //pinMode(MOT_E_EN,OUTPUT);
+
   pinMode(INPUT_SIGNAL, INPUT);
 
 	engine.init();
@@ -115,15 +116,19 @@ void loop() {
 
 }
 
+unsigned long tStart = 0;
+bool timeout = false;
+
 void check_input() {
 
   iS = digitalRead(INPUT_SIGNAL);
 
-  if (iS != old_iS) {
+  if ((iS != old_iS) || (timeout)) {
 
-    if (iS) {
+    if ((iS) && (!timeout)) {
 
       Serial.println("INIZIO");
+      tStart = millis();
 
       go_A = true;
       go_B = true;
@@ -131,11 +136,11 @@ void check_input() {
       go_D = true;
       go_E = true;
 
-      pinMode(MOT_A_EN, INPUT);
-      pinMode(MOT_B_EN, INPUT);
-      pinMode(MOT_C_EN, INPUT);
-      pinMode(MOT_D_EN, INPUT);
-      pinMode(MOT_E_EN, INPUT);
+      //pinMode(MOT_A_EN, INPUT);
+      //pinMode(MOT_B_EN, INPUT);
+      //pinMode(MOT_C_EN, INPUT);
+      //pinMode(MOT_D_EN, INPUT);
+      //pinMode(MOT_E_EN, INPUT);
 
       delay(100);
      
@@ -144,6 +149,13 @@ void check_input() {
       mot_E->setCurrentPosition(0);
 
       delay(100);
+
+      mot_A->setSpeedInHz(MOT_SPEED/4);  
+      mot_A->setAcceleration(MOT_ACC/10);  
+      mot_A->applySpeedAcceleration();
+      mot_D->setSpeedInHz(MOT_SPEED/4);  
+      mot_D->setAcceleration(MOT_ACC/10);  
+      mot_D->applySpeedAcceleration();
 
       mot_A->move(OFFSET_A);
       mot_D->move(OFFSET_D);
@@ -154,6 +166,13 @@ void check_input() {
 
       mot_A->setCurrentPosition(0);
       mot_D->setCurrentPosition(0);
+
+      mot_A->setSpeedInHz(MOT_SPEED);  
+      mot_A->setAcceleration(MOT_ACC);  
+      mot_A->applySpeedAcceleration();
+      mot_D->setSpeedInHz(MOT_SPEED);  
+      mot_D->setAcceleration(MOT_ACC);  
+      mot_D->applySpeedAcceleration();
 
       delay(100);
 
@@ -168,11 +187,22 @@ void check_input() {
 
       Serial.println("FINE");
 
+      if (timeout) {
+        timeout = false;
+      }
+      
       go_A = false;
       go_B = false;
       go_C = false;
       go_D = false;
       go_E = false;
+
+      mot_A->setSpeedInHz(MOT_SPEED/4);  
+      mot_A->setAcceleration(MOT_ACC/10);  
+      mot_A->applySpeedAcceleration();
+      mot_D->setSpeedInHz(MOT_SPEED/4);  
+      mot_D->setAcceleration(MOT_ACC/10);  
+      mot_D->applySpeedAcceleration();
 
       mot_A->moveTo(-OFFSET_A);
       mot_B->moveTo(0);
@@ -184,16 +214,21 @@ void check_input() {
 
       delay(100);
 
-      pinMode(MOT_A_EN, OUTPUT);
-      pinMode(MOT_B_EN, OUTPUT);
-      pinMode(MOT_C_EN, OUTPUT);
-      pinMode(MOT_D_EN, OUTPUT);
-      pinMode(MOT_E_EN, OUTPUT);
+      //pinMode(MOT_A_EN, OUTPUT);
+      //pinMode(MOT_B_EN, OUTPUT);
+      //pinMode(MOT_C_EN, OUTPUT);
+      //pinMode(MOT_D_EN, OUTPUT);
+      //pinMode(MOT_E_EN, OUTPUT);
+      
 
     }
 
     old_iS = iS;
 
+  }
+
+  if ((millis() - tStart) > 120000) {
+    timeout = true;
   } 
 
 }
