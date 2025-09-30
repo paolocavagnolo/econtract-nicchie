@@ -29,8 +29,8 @@ FastAccelStepper *mot_C = NULL;
 FastAccelStepper *mot_D = NULL;
 FastAccelStepper *mot_E = NULL;
 
-#define MOT_SPEED 8000
-#define MOT_ACC 16000
+#define MOT_SPEED 1000
+#define MOT_ACC 1000
 
 void setup() {
 	delay(1000);
@@ -100,15 +100,15 @@ void setup() {
 
 }
 
-#define OFFSET_A -1000
-#define OFFSET_B 0
+#define OFFSET_A 0
+#define OFFSET_B -850
 #define OFFSET_C 0
-#define OFFSET_D -900
-#define OFFSET_E 0
+#define OFFSET_D 0
+#define OFFSET_E 750
 
 #define TIME_OFFSET 1600
 
-long CORSA = 600;
+long CORSA = 300;
 
 bool go_A = false, go_B = false, go_C = false, go_D = false, go_E = false;
 
@@ -117,11 +117,30 @@ unsigned long T_MOT_A = 0, T_MOT_D = 0;
 unsigned long T_MOT_B = 0, T_MOT_C = 0;
 unsigned long T_MOT_E = 0;
 
+#define TIME_ON 60000
+#define TIME_OFF 30000
+
+unsigned long tLoop = 0, tWait = TIME_ON; // 1 minuti
+bool eL = true, old_eL = true;
+
 void loop() {
 
   check_input();
  
   logic();
+
+  if ((millis() - tLoop) > tWait) {
+    tLoop = millis();
+
+    if (eL) {
+      eL = false;
+      tWait = TIME_OFF;
+    } else {
+      eL = true;
+      tWait = TIME_ON;
+    }
+
+  }
 
 }
 
@@ -130,9 +149,9 @@ void check_input() {
   iS = !digitalRead(INPUT_SIGNAL);
   //iS = 1;
 
-  if (iS != old_iS) {
+  if ((iS != old_iS) || (eL != old_eL)) {
 
-    if (iS) {
+    if ((iS) && (eL)) {
 
       Serial.println("INIZIO");
 
@@ -150,21 +169,21 @@ void check_input() {
 
       delay(300);
      
-      mot_B->setCurrentPosition(0);
-      mot_C->setCurrentPosition(0);
-      mot_E->setCurrentPosition(0);
-
-      delay(100);
-
-      mot_A->move(OFFSET_A);
-      mot_D->move(OFFSET_D);
-
-      while (mot_D->isRunning() || mot_A->isRunning()){};
-
-      delay(100);
-
       mot_A->setCurrentPosition(0);
+      mot_C->setCurrentPosition(0);
       mot_D->setCurrentPosition(0);
+
+      delay(100);
+
+      mot_B->move(OFFSET_B);
+      mot_E->move(OFFSET_E);
+
+      while (mot_B->isRunning() || mot_E->isRunning()){};
+
+      delay(100);
+
+      mot_B->setCurrentPosition(0);
+      mot_E->setCurrentPosition(0);
 
       delay(100);
 
@@ -173,7 +192,6 @@ void check_input() {
       mot_C->move(CORSA/2);
       mot_D->move(CORSA/2);
       mot_E->move(CORSA/2);
-
 
     } else {
 
@@ -185,11 +203,11 @@ void check_input() {
       go_D = false;
       go_E = false;
 
-      mot_A->moveTo(-OFFSET_A);
-      mot_B->moveTo(0);
+      mot_A->moveTo(0);
+      mot_B->moveTo(-OFFSET_B);
       mot_C->moveTo(0);
-      mot_D->moveTo(-OFFSET_D);
-      mot_E->moveTo(0);
+      mot_D->moveTo(0);
+      mot_E->moveTo(-OFFSET_E);
       
       while (mot_D->isRunning() || mot_A->isRunning() || mot_E->isRunning() || mot_B->isRunning() || mot_C->isRunning()){};
 
@@ -204,6 +222,7 @@ void check_input() {
     }
 
     old_iS = iS;
+    old_eL = eL;
 
   } 
 

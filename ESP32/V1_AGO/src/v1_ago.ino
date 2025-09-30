@@ -9,7 +9,7 @@
 #define ZERO_OFFSET_BASE 5*4
 #define ZERO_OFFSET_TOP 5*4
 
-#define CORSA_BASE -120*4
+#define CORSA_BASE 50*4
 #define CORSA_TOP 1400*4
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
@@ -31,6 +31,11 @@ void setup() {
 
   pinMode(21, OUTPUT);
   pinMode(27, OUTPUT);
+
+  // FC
+
+  pinMode(34, INPUT);
+  pinMode(35, INPUT);
 
   disableMotor();
 
@@ -55,110 +60,119 @@ void setup() {
 
   delay(1000);
 
-  pinMode(4, INPUT_PULLUP);
-  pinMode(5, INPUT_PULLUP);
+  pinMode(4, INPUT);
 
   delay(1000);
 
   tSequenza = millis();
 
+  enableMotor();
+  goToHome();
+
 }
 
 
-bool pAvantiA = true;
-bool pAvantiZ = true;
+int iS, old_iS;
+bool goAgo = false;
 
-bool pDietroA = true;
-bool pDietroZ = true;
+#define TIME_ON 100000;
+#define TIME_OFF 45000;
 
-unsigned long t_AUTO_G = 0, tS_AUTO_G = 0, tSO_AUTO_G = 0;
-bool s_AUTO_G = false, p_AUTO_G = true, f_AUTO_G = false, pO_AUTO_G = true;
-bool f_REM_G = false;
+unsigned long tLoop = 0, tWait = TIME_ON;
+int ago_counter = 0;
+bool eL = true, old_eL = true;
 
-unsigned long t_AUTO_H = 0, tS_AUTO_H = 0, tSO_AUTO_H = 0;
-bool s_AUTO_H = false, p_AUTO_H = true, f_AUTO_H = false, pO_AUTO_H = true;
-bool f_REM_H = false;
-
-bool go_go = false;
+unsigned long tDebug = 0;
 
 void loop() {
-  /*
-  check_AUTO_G();
 
-  if (f_AUTO_G) {
-    f_AUTO_G = false;
-    BASE->runForward();
-    TOP->runForward();
+
+  check_input();
+
+  logic();
+
+  if ((millis() - tLoop) > tWait) {
+    tLoop = millis();
+
+    if (eL) {
+      tWait = TIME_OFF;
+      eL = false;
+    } else {
+      eL = true;
+      tWait = TIME_ON;
+    }
+
   }
 
-  if (f_REM_G) {
-    f_REM_G = false;
-    BASE->stopMove();
-    TOP->stopMove();
-  }*/
+}
 
-  check_AUTO_H();
+void check_input() {
 
-  if (f_AUTO_H) {
-    f_AUTO_H = false;
-    go_go = true;
-    tSequenza = millis();
-    enableMotor();
-    delay(200);
+  iS = !digitalRead(4);
+
+  if ((iS != old_iS) || (eL != old_eL)) {
+
+    if ((iS) && (eL)) {
+
+      enableMotor();
+      tSequenza = millis();
+      goAgo = true;
+      delay(300);
+
+    } else {
+
+      goAgo = false;
+
+      goToHome();
+
+      disableMotor();
+
+    }
+
+    old_iS = iS;
+    old_eL = eL;
   }
 
-  if (f_REM_H) {
-    f_REM_H = false;
-    go_go = false;
-    BASE->stopMove();
-    while(BASE->isRunning()){};
-    BASE->moveTo(0);
-    while(BASE->isRunning()){};
-    TOP->stopMove();
-    while(TOP->isRunning()){};
-    TOP->moveTo(0);
-    while(TOP->isRunning()){};
-    disableMotor();
-  }
+}
 
-  
-  if (go_go) {
+void logic() {
+
+  if (goAgo) {
     if (!BASE->isRunning()) {
 
-        if (BASE->getCurrentPosition() == CORSA_BASE) {
-          act_BASE(-CORSA_BASE,12);
-        }
-        else if (BASE->getCurrentPosition() == 0) {
-          act_BASE(CORSA_BASE,12);
-        } else {
-          long pos_base = BASE->getCurrentPosition();
-          act_BASE(0 - pos_base,12);
-        }
-
+      if (BASE->getCurrentPosition() == CORSA_BASE) {
+        act_BASE(-CORSA_BASE,12);
+      }
+      else if (BASE->getCurrentPosition() == 0) {
+        act_BASE(CORSA_BASE,12);
+      } else {
+        long pos_base = BASE->getCurrentPosition();
+        act_BASE(0 - pos_base,12);
       }
 
-      
-      if ((millis() - tSequenza) > 6000){
-        if (!TOP->isRunning()) {
+    }
 
-          if (TOP->getCurrentPosition() == CORSA_TOP) {
-            act_TOP(-CORSA_TOP,12);
-          }
-          else if (TOP->getCurrentPosition() == 0) {
-            act_TOP(CORSA_TOP,12);
-          } else {
-            long pos_top = TOP->getCurrentPosition();
-            act_BASE(0 - pos_top,12);
-          }
+    if ((millis() - tSequenza) > 6000){
+      if (!TOP->isRunning()) {
 
+        if (TOP->getCurrentPosition() == CORSA_TOP) {
+          act_TOP(-CORSA_TOP,12);
         }
+        else if (TOP->getCurrentPosition() == 0) {
+          act_TOP(CORSA_TOP,12);
+        } else {
+          long pos_top = TOP->getCurrentPosition();
+          act_BASE(0 - pos_top,12);
+        }
+
       }
     }
+  }
 
 }
 
 void disableMotor() {
-  delay(100);  // DA TESTARE
+  delay(200);  // DA TESTARE
   digitalWrite(21, HIGH);
   digitalWrite(27, HIGH);
 }
@@ -166,7 +180,7 @@ void disableMotor() {
 void enableMotor() {
   digitalWrite(21, LOW);
   digitalWrite(27, LOW);
-  delay(100);  // DA TESTARE
+  delay(200);  // DA TESTARE
 }
 
 void act_BASE(int32_t pos, float tempo) {
@@ -203,96 +217,82 @@ void act_TOP(int32_t pos, float tempo) {
 
 }
 
-void check_AUTO_G() {
-  if (!s_AUTO_G) {
-    if ((millis() - t_AUTO_G) > 200) {
-      if (!digitalRead(5)) {
-        if (p_AUTO_G) {
-          p_AUTO_G = false;
-          tS_AUTO_G = millis();
-        }
-        if ((millis() - tS_AUTO_G) > 200) {
-          t_AUTO_G = millis();
-          s_AUTO_G = true;
-          pO_AUTO_G = true;
-          
-          // PREMUTO DOPO 200 ms 
-          Serial.println("PUSHED BTN_AUTO_G");
+void goToHome() {
 
-          f_AUTO_G = true;
-        }
-      } else {
-        tS_AUTO_G = millis();
-      }
-    }
-  } else {
-    if ((millis() - t_AUTO_G) > 200) {
-      if (digitalRead(5)) {
-        if (pO_AUTO_G) {
-          pO_AUTO_G = false;
-          tSO_AUTO_G = millis();
-        }
+  Serial.println("GOTOHOME");
 
-        if ((millis() - tSO_AUTO_G) > 200) {
-          t_AUTO_G = millis();
-          s_AUTO_G = false;
-          p_AUTO_G = true;
-
-          // RILASCIATO DOPO 200 ms
-          Serial.println("RELEASED BTN_AUTO_G");
-          f_REM_G = true;
-
-        }
-      } else {
-        tSO_AUTO_G = millis();
-      }
-    }
+  if ((BASE->isRunning()) || (TOP->isRunning())) {
+    BASE->stopMove();
+    TOP->stopMove();
+    while ((BASE->isRunning()) || (TOP->isRunning())) {}
   }
-}
 
-void check_AUTO_H() {
-  if (!s_AUTO_H) {
-    if ((millis() - t_AUTO_H) > 200) {
-      if (!digitalRead(4)) {
-        if (p_AUTO_H) {
-          p_AUTO_H = false;
-          tS_AUTO_H = millis();
-        }
-        if ((millis() - tS_AUTO_H) > 200) {
-          t_AUTO_H = millis();
-          s_AUTO_H = true;
-          pO_AUTO_H = true;
-          
-          // PREMUTO DOPO 200 ms 
-          Serial.println("PUSHED BTN_AUTO_H");
+  bool exit_flag_base = false;
+  bool exit_flag_top = false;
 
-          f_AUTO_H = true;
-        }
-      } else {
-        tS_AUTO_H = millis();
-      }
+  BASE->setSpeedInHz(BASE_SPEED/3);  
+  BASE->setAcceleration(BASE_ACC/3);
+  BASE->applySpeedAcceleration();
+
+  TOP->setSpeedInHz(TOP_SPEED/2);  
+  TOP->setAcceleration(TOP_ACC/2);
+  TOP->applySpeedAcceleration();
+
+  BASE->runBackward();
+
+  unsigned long tFC = millis();
+
+  while (!exit_flag_base) {
+
+    if (digitalRead(34)) {
+      BASE->forceStop();
+      exit_flag_base = true;
+      Serial.println("OK BASE");
     }
-  } else {
-    if ((millis() - t_AUTO_H) > 200) {
-      if (digitalRead(4)) {
-        if (pO_AUTO_H) {
-          pO_AUTO_H = false;
-          tSO_AUTO_H = millis();
-        }
 
-        if ((millis() - tSO_AUTO_H) > 200) {
-          t_AUTO_H = millis();
-          s_AUTO_H = false;
-          p_AUTO_H = true;
-
-          // RILASCIATO DOPO 200 ms
-          Serial.println("RELEASED BTN_AUTO_H");
-          f_REM_H = true;
-
-        }
-      } else {
-        tSO_AUTO_H = millis();
-      }
+    if ((millis() - tFC) > 15000) {
+      BASE->forceStop();
+      exit_flag_base = true;
+      Serial.println("TIMEOUT BASE");
     }
+
   }
+
+  TOP->runBackward();
+  tFC = millis();
+
+  while (!exit_flag_top) {
+
+    if (digitalRead(35)) {
+      TOP->forceStop();
+      exit_flag_top = true;
+      Serial.println("OK TOP");
+    }
+
+    if ((millis() - tFC) > 15000) {
+      TOP->forceStop();
+      exit_flag_top = true;
+      Serial.println("TIMEOUT TOP");
+    }
+    
+
+  }
+
+  delay(100);
+
+  BASE->move(ZERO_OFFSET_BASE);
+  TOP->move(ZERO_OFFSET_TOP);
+
+  while ((BASE->isRunning()) || (TOP->isRunning())) {}
+
+  BASE->setCurrentPosition(0);
+  TOP->setCurrentPosition(0);
+
+  BASE->setSpeedInHz(BASE_SPEED);  
+  BASE->setAcceleration(BASE_ACC);
+  BASE->applySpeedAcceleration();
+
+  TOP->setSpeedInHz(TOP_SPEED);  
+  TOP->setAcceleration(TOP_ACC);
+  TOP->applySpeedAcceleration();
 }
