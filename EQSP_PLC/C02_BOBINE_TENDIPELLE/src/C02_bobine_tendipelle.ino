@@ -87,9 +87,9 @@ void setup() {
 
 
   // AUDIO OUTPUT
-  pinMode(DIO15, OUTPUT);   // audio bobine
+  pinMode(DIO13, OUTPUT);   // audio bobine
   pinMode(DIO16, OUTPUT);   // audio tirapelle
-  digitalWrite(DIO15, LOW);
+  digitalWrite(DIO13, LOW);
   digitalWrite(DIO16, LOW);
 
   // BUZZER 
@@ -231,7 +231,7 @@ void logica_bobine_all() {
       delay(300);
       tOn = true;
       tWait = 0;
-      digitalWrite(15, HIGH);
+      digitalWrite(DIO13, HIGH);
     }
 
     if ((millis() - tBobine) > tWait) {
@@ -292,7 +292,7 @@ void logica_bobine_all() {
       delay(300);
       relay_write(0x00, 0xFF, false);
       delay(300);
-      digitalWrite(15, LOW);
+      digitalWrite(DIO13, LOW);
     }
     
   }

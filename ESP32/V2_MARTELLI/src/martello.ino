@@ -118,7 +118,7 @@ unsigned long T_MOT_B = 0, T_MOT_C = 0;
 unsigned long T_MOT_E = 0;
 
 #define TIME_ON 60000
-#define TIME_OFF 30000
+#define TIME_OFF 90000
 
 unsigned long tLoop = 0, tWait = TIME_ON; // 1 minuti
 bool eL = true, old_eL = true;
