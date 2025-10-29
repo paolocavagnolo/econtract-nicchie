@@ -37,14 +37,15 @@ HardwareSerial RS485(2);
 #define M1_SPEED  8000
 #define M1_ACC    5000
 
-#define M2_SPEED  6000
-#define M2_ACC    10000
+#define M2_SPEED  8000
+#define M2_ACC    5000
 
 #define CORSA     900
 #define ZERO_OFFSET_TENDIPELLE 0
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *M1 = NULL;
+FastAccelStepper *M2 = NULL;
 
 void setup() {
 
@@ -66,11 +67,14 @@ void setup() {
   // PANEL INPUT
   pinMode(ADIO1, INPUT);  // bobine marius
   pinMode(ADIO2, INPUT);  // tendipelle marius
-  pinMode(ADIO3, INPUT);  // finecorsa M12
+  pinMode(ADIO3, INPUT);  // finecorsa M1
+  pinMode(ADIO4, INPUT);  // finecorsa M2
 
   // DRIVER OUTPUT
   pinMode(DIO11, OUTPUT); // M1 enable
   digitalWrite(DIO11, LOW);
+  pinMode(DIO14, OUTPUT); // M2 enable
+  digitalWrite(DIO14, LOW);
 
   delay(1000);
 
@@ -79,17 +83,27 @@ void setup() {
   M1 = engine.stepperConnectToPin(DIO9);
 
   if (M1) {
-      M1->setDirectionPin(DIO10, false);  
+      M1->setDirectionPin(DIO10);  
       M1->setSpeedInHz(M1_SPEED);  
       M1->setAcceleration(M1_ACC); 
+      //M1->runForward();
  
+  }
+
+  M2 = engine.stepperConnectToPin(DIO12);
+
+  if (M2) {
+      M2->setDirectionPin(DIO13);  
+      M2->setSpeedInHz(M2_SPEED);  
+      M2->setAcceleration(M2_ACC); 
+      //M2->runForward(); 
   }
 
 
   // AUDIO OUTPUT
-  pinMode(DIO13, OUTPUT);   // audio bobine
+  pinMode(DIO15, OUTPUT);   // audio bobine
   pinMode(DIO16, OUTPUT);   // audio tirapelle
-  digitalWrite(DIO13, LOW);
+  digitalWrite(DIO15, LOW);
   digitalWrite(DIO16, LOW);
 
   // BUZZER 
@@ -106,6 +120,7 @@ void setup() {
   ledcWriteTone(0, 0);
 
   delay(3000);
+
 
 }
 
@@ -145,22 +160,32 @@ void logica_tendipelle() {
       prima_volta_tendipelle = false;
       prima_uscita_tendipelle = true;
 
-      digitalWrite(DIO11, HIGH);
-      digitalWrite(DIO14, HIGH);
       digitalWrite(DIO16, HIGH);
 
+      digitalWrite(DIO11, LOW);
+      digitalWrite(DIO14, LOW);
       delay(200);
 
       goToHome_tendipelle();
 
     }
 
-    if (M1->getCurrentPosition() == 0) {
-      M1->moveTo(CORSA);
+    if (!M1->isRunning() && !M2->isRunning()) {
+      if ((M1->getCurrentPosition() == 0) && (M2->getCurrentPosition() == 0)) {
+        M1->moveTo(CORSA);
+        M2->moveTo(CORSA);
+      }
+      else if ((M1->getCurrentPosition() == CORSA) && (M2->getCurrentPosition() == CORSA)) {
+        M1->moveTo(0);
+        M2->moveTo(0);
+      } else {
+        M1->moveTo(0);
+        M2->moveTo(0);
+      }
     }
-    if (M1->getCurrentPosition() == CORSA) {
-      M1->moveTo(0);
-    }
+    
+
+
 
   } else {
     if (prima_uscita_tendipelle) {
@@ -172,12 +197,18 @@ void logica_tendipelle() {
       M1->moveTo(0);
       while(M1->isRunning()){};
 
+      M2->stopMove();
+      while(M2->isRunning()){};
+      M2->moveTo(0);
+      while(M2->isRunning()){};
+
       delay(100);
 
-      digitalWrite(DIO11, LOW);
+      digitalWrite(DIO11, HIGH);
+      digitalWrite(DIO14, HIGH);
 
       digitalWrite(DIO16, LOW);
-      digitalWrite(DIO10, LOW);
+
     }
   }
 }
@@ -315,7 +346,7 @@ void logica_bobine_tre() {
       delay(100);
       tOn = true;
       tWait = 0;
-      digitalWrite(15, HIGH);
+      digitalWrite(DIO15, HIGH);
     }
 
     if ((millis() - tBobine) > tWait) {
@@ -377,7 +408,7 @@ void logica_bobine_tre() {
       relay_write(0x00, 0xFF, false);
       delay(100);
       relay_write(0x00, 0xFF, false);
-      digitalWrite(15, LOW);
+      digitalWrite(DIO15, LOW);
     }
     
   }
@@ -415,20 +446,76 @@ void relay_write(uint8_t id_device, uint8_t id_relay, bool stato_relay) {
 
 void goToHome_tendipelle() {
 
-  M1->setSpeedInHz(M1_SPEED/4);  
-  M1->setAcceleration(M1_ACC/4); 
+  M1->setSpeedInHz(M1_SPEED/2);  
+  M1->setAcceleration(M1_ACC/2);  
   M1->applySpeedAcceleration();
-  
+  M2->setSpeedInHz(M2_SPEED/2);  
+  M2->setAcceleration(M2_ACC/2);  
+  M2->applySpeedAcceleration();
+
+  unsigned long tStart = millis();
+  bool timeout = false;
+
   M1->runBackward();
-  while(!digitalRead(ADIO3)){};
+  while (!digitalRead(ADIO3)){
+    if ((millis() - tStart) > 3000) {
+      Serial.println("TIMEOUT 1");
+      timeout = true;
+      break;
+    }
+  };
+
+  if (!timeout) {
+    Serial.println("FINE CORSA 1 OK");
+  } else {
+    timeout = false;
+  }
+
   M1->forceStop();
-  delay(200);
-  M1->move(ZERO_OFFSET_TENDIPELLE);
-  while(M1->isRunning()){};
+  delay(100);
   M1->setCurrentPosition(0);
+  tStart = millis();
+
+  M2->runForward();
+  while (!digitalRead(ADIO4)){
+    if ((millis() - tStart) > 1000) {
+      Serial.println("TIMEOUT FORWARD");
+      timeout = true;
+      break;
+    }
+  };
+
+  tStart = millis();
+
+  if (!timeout) {
+
+    Serial.println("FINE CORSA 2 OK");
+
+  } else {
+
+    M2->runBackward();
+
+    while (!digitalRead(ADIO4)){
+      if ((millis() - tStart) > 4000) {
+        Serial.println("TIMEOUT BACKWARD");
+        timeout = true;
+        break;
+      }
+    };
+
+
+  }
+
+  M2->forceStop();
+  delay(100);
+  M2->setCurrentPosition(230);
+  tStart = millis();
 
   M1->setSpeedInHz(M1_SPEED);  
-  M1->setAcceleration(M1_ACC); 
+  M1->setAcceleration(M1_ACC);  
   M1->applySpeedAcceleration();
+  M2->setSpeedInHz(M2_SPEED);  
+  M2->setAcceleration(M2_ACC);  
+  M2->applySpeedAcceleration();
 
 }
