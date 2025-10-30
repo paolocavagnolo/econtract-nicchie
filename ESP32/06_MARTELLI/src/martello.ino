@@ -91,10 +91,10 @@ void setup() {
 
 }
 
-#define OFFSET_A -1000
+#define OFFSET_A 600
 #define OFFSET_B 0
 #define OFFSET_C 0
-#define OFFSET_D -900
+#define OFFSET_D 620
 #define OFFSET_E 0
 
 #define TIME_OFFSET 1600
@@ -204,11 +204,11 @@ void check_input() {
       mot_D->setAcceleration(MOT_ACC/10);  
       mot_D->applySpeedAcceleration();
 
-      mot_A->moveTo(-OFFSET_A);
-      mot_B->moveTo(0);
-      mot_C->moveTo(0);
-      mot_D->moveTo(-OFFSET_D);
-      mot_E->moveTo(0);
+      // mot_A->moveTo(OFFSET_A*-1);
+      // mot_B->moveTo(0);
+      // mot_C->moveTo(0);
+      // mot_D->moveTo(OFFSET_D*-1);
+      // mot_E->moveTo(0);
       
       while (mot_D->isRunning() || mot_A->isRunning() || mot_E->isRunning() || mot_B->isRunning() || mot_C->isRunning()){};
 

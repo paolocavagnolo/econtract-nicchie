@@ -146,6 +146,7 @@ void setup() {
   delay(50);
   ledcWriteTone(0, 0);
 
+
   delay(3000);
 
 }
@@ -238,7 +239,6 @@ void loop() {
       prima_volta = true;
       avvio_gioco = false;
       digitalWrite(DIO16, LOW);
-      analogWrite(DIO16, 0);
       delay(300);
     }
   }
@@ -262,7 +262,6 @@ void test_alzata_in3() {
       P = true;
     } else {
       digitalWrite(DIO15, HIGH);
-      digitalWrite(DIO16, LOW);
     }
 
   }
