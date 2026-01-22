@@ -113,7 +113,7 @@ void check_STATE() {
     Serial.println("INIZIO LOOP");
 
     digitalWrite(DIO9, HIGH); // rele
-    delay(1500);
+    delay(1000);
     digitalWrite(DIO10, HIGH); // segnale
 
   } else if (f_REM) {

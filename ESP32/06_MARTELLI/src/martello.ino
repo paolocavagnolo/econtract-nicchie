@@ -91,7 +91,7 @@ void setup() {
 
 }
 
-#define OFFSET_A 600
+#define OFFSET_A -600
 #define OFFSET_B 0
 #define OFFSET_C 0
 #define OFFSET_D 620
@@ -142,18 +142,16 @@ void check_input() {
       //pinMode(MOT_D_EN, INPUT);
       //pinMode(MOT_E_EN, INPUT);
 
-      delay(100);
-     
       mot_B->setCurrentPosition(0);
       mot_C->setCurrentPosition(0);
       mot_E->setCurrentPosition(0);
 
       delay(100);
 
-      mot_A->setSpeedInHz(MOT_SPEED/4);  
+      mot_A->setSpeedInHz(MOT_SPEED/6);  
       mot_A->setAcceleration(MOT_ACC/10);  
       mot_A->applySpeedAcceleration();
-      mot_D->setSpeedInHz(MOT_SPEED/4);  
+      mot_D->setSpeedInHz(MOT_SPEED/6);  
       mot_D->setAcceleration(MOT_ACC/10);  
       mot_D->applySpeedAcceleration();
 
@@ -197,18 +195,26 @@ void check_input() {
       go_D = false;
       go_E = false;
 
-      mot_A->setSpeedInHz(MOT_SPEED/4);  
+      mot_A->stopMove();
+      mot_B->stopMove();
+      mot_C->stopMove();
+      mot_D->stopMove();
+      mot_E->stopMove();
+
+      while (mot_D->isRunning() || mot_A->isRunning() || mot_E->isRunning() || mot_B->isRunning() || mot_C->isRunning()){};
+
+      mot_A->setSpeedInHz(MOT_SPEED/6);  
       mot_A->setAcceleration(MOT_ACC/10);  
       mot_A->applySpeedAcceleration();
-      mot_D->setSpeedInHz(MOT_SPEED/4);  
+      mot_D->setSpeedInHz(MOT_SPEED/6);  
       mot_D->setAcceleration(MOT_ACC/10);  
       mot_D->applySpeedAcceleration();
 
-      // mot_A->moveTo(OFFSET_A*-1);
-      // mot_B->moveTo(0);
-      // mot_C->moveTo(0);
-      // mot_D->moveTo(OFFSET_D*-1);
-      // mot_E->moveTo(0);
+      mot_A->moveTo(OFFSET_A*-1);
+      mot_B->moveTo(0);
+      mot_C->moveTo(0);
+      mot_D->moveTo(OFFSET_D*-1);
+      mot_E->moveTo(0);
       
       while (mot_D->isRunning() || mot_A->isRunning() || mot_E->isRunning() || mot_B->isRunning() || mot_C->isRunning()){};
 

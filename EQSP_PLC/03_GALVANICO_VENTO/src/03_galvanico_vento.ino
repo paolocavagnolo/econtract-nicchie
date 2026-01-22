@@ -388,17 +388,17 @@ void logica_V() {
     }
     */
 
-    if ((millis() - tVento) > wVento) {
-      tVento = millis();
+    // if ((millis() - tVento) > wVento) {
+    //   tVento = millis();
 
-      digitalWrite(DIO14, sVento);
-      digitalWrite(DIO15, sVento);
+    //   digitalWrite(DIO14, sVento);
+    //   digitalWrite(DIO15, sVento);
 
-      sVento = !sVento;
+    //   sVento = !sVento;
 
-      if (sVento) wVento = random(1600,3200); // tempo spente
-      else wVento = 600; // tempo accese
-    }
+    //   if (sVento) wVento = random(1600,3200); // tempo spente
+    //   else wVento = 2000; // tempo accese
+    // }
 
   } else if (STATE_V == 2) {
     // MAN
@@ -531,6 +531,8 @@ void check_STATE_V() {
     SUB_STATE_VENTO = 0;
     wVento = 0;
     pVento = true;
+    digitalWrite(DIO14, HIGH);
+    digitalWrite(DIO15, HIGH);
 
   } else if (f_REM_V) {
     f_REM_V = false;

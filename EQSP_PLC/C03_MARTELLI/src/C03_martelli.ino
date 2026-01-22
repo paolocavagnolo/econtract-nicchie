@@ -49,9 +49,9 @@ HardwareSerial RS485(2);
 
 #define ZERO_OFFSET 50
 
-#define CORSA_M1 2200
-#define CORSA_M2 2200
-#define CORSA_M3 2200
+#define CORSA_M1 2500
+#define CORSA_M2 2500
+#define CORSA_M3 2500
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *M1 = NULL;
