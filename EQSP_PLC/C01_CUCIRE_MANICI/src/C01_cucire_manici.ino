@@ -2,7 +2,7 @@
 #define ADIO2   2
 #define ADIO3   4
 #define ADIO4   5
-#define ADIO5   6
+#define ADIO5   7 //6
 #define ADIO6   7
 #define ADIO7   8
 #define ADIO8   9
@@ -306,7 +306,14 @@ void goToHome_manici() {
 
   Serial.println("ZERO INZIO");
   M_MANICI->runBackward();
-  while (digitalRead(ADIO5)){};
+
+  unsigned long time_out = millis();
+
+  while (digitalRead(ADIO5)){
+    if ((millis() - time_out) > 10000) {
+      break;
+    }
+  };
   M_MANICI->forceStop();
   delay(200);
   M_MANICI->move(ZERO_OFFSET_MANICI);
