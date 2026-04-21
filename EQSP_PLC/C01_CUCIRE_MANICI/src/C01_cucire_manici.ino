@@ -309,7 +309,7 @@ void goToHome_manici() {
 
   unsigned long time_out = millis();
 
-  while (digitalRead(ADIO5)){
+  while (!digitalRead(ADIO5)){
     if ((millis() - time_out) > 10000) {
       break;
     }
