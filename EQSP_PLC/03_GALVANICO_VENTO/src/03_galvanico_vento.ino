@@ -8,6 +8,8 @@
 // 10/09/2025 @POLENE
 // MANCA TEST SU VENTO CABLATI
 
+// 09/08/2026 @POLENE
+
 #define ADIO1   1
 #define ADIO2   2
 #define ADIO3   4
@@ -57,6 +59,8 @@ FastAccelStepper *M1 = NULL;
 uint8_t STATE_G = 0; // 0 REMOTE - 1 AUTO - 2 MAN
 uint8_t STATE_V = 0; // 0 REMOTE - 1 AUTO - 2 MAN
 
+int opened_counter = 0;
+
 void setup() {
 
   delay(1000);
@@ -89,7 +93,7 @@ void setup() {
 
   // DRIVER OUTPUT
   pinMode(DIO12, OUTPUT);
-  disableMotor();
+  //disableMotor();
 
   engine.init();
 
@@ -138,6 +142,11 @@ void setup() {
   ledcWriteTone(0, 0);
 
   delay(1000);
+  enableMotor();
+  delay(300);
+  goToHome();
+  delay(300);
+  disableMotor();
 
 }
 
@@ -204,6 +213,9 @@ void logica_G() {
   if (STATE_G == 0) {
     // REMOTO - IDLE
     delay(50);
+    if (M1->getCurrentPosition() == 0) {
+      disableMotor();
+    }
 
   } else if (STATE_G == 1) {
     // AUTO
@@ -503,10 +515,17 @@ void check_STATE_G() {
     } else {
 
       STATE_G = 0;
-
-      goToHome();
+      if (opened_counter > 100) {
+        goToHome();
+        opened_counter = 0;
+      } else {
+        M1->moveTo(0);
+        opened_counter++;
+      }
+      
       bolleOff();
-      disableMotor();
+
+      
 
     }
     
