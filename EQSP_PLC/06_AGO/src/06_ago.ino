@@ -36,8 +36,8 @@
 
 #include "FastAccelStepper.h"
 
-#define BASE_SPEED  40
-#define BASE_ACC    160
+#define BASE_SPEED  40*4    //
+#define BASE_ACC    160*4
 
 #define TOP_SPEED  500
 #define TOP_ACC    5000
@@ -79,13 +79,14 @@ void setup() {
   pinMode(ADIO7, INPUT);  // SEL TOP
 
   pinMode(ADIO8, INPUT);  // FINE CORSA BASE
-  pinMode(DIO9, INPUT);   // FINE CORSA TOP
+  pinMode(ADIO3, INPUT);   // FINE CORSA TOP //DIO9
 
   // DRIVER OUTPUT
 
   pinMode(DIO12, OUTPUT);
   pinMode(DIO15, OUTPUT);
-  disableMotor();
+  //disableMotor();
+  enableMotor();
 
   engine.init();
 
@@ -176,20 +177,6 @@ void logica() {
   } else if (STATE == 1) {
     // AUTO
 
-    if (!BASE->isRunning()) {
-
-      if (BASE->getCurrentPosition() == CORSA_BASE) {
-        act_BASE(-CORSA_BASE,6);
-      }
-      else if (BASE->getCurrentPosition() == 0) {
-        act_BASE(CORSA_BASE,6);
-      } else {
-        long pos_base = BASE->getCurrentPosition();
-        act_BASE(0 - pos_base,6);
-      }
-
-    }
-
     if ((millis() - tSequenza) > 3000){
       if (!TOP->isRunning()) {
 
@@ -200,7 +187,7 @@ void logica() {
           act_TOP(CORSA_TOP,6);
         } else {
           long pos_top = TOP->getCurrentPosition();
-          act_BASE(0 - pos_top,6);
+          act_TOP(0 - pos_top,6);
         }
 
       }
@@ -273,15 +260,8 @@ void check_STATE() {
     STATE = 2;
     enableMotor();
 
-    BASE->stopMove();
-    while (BASE->isRunning());
-
     TOP->stopMove();
     while (TOP->isRunning());
-
-    BASE->setSpeedInHz(BASE_SPEED);  
-    BASE->setAcceleration(BASE_ACC);
-    BASE->applySpeedAcceleration();
 
     TOP->setSpeedInHz(MAN_SPEED);  
     TOP->setAcceleration(MAN_ACC);
@@ -298,11 +278,10 @@ void check_STATE() {
       goToHome();
     }
 
-    if ((BASE->isRunning()) || (TOP->isRunning())) {
-      BASE->stopMove();
+    if (TOP->isRunning()) {
       TOP->stopMove();
 
-      while ((BASE->isRunning()) || (TOP->isRunning())) {}
+      while (TOP->isRunning());
     }
 
     Serial.println("INIZIO LOOP");
@@ -322,7 +301,7 @@ void check_STATE() {
 
       goToHome();
 
-      disableMotor();
+      //disableMotor();
 
     }
 
@@ -578,53 +557,41 @@ void check_SEL_2() {
 
 void goToHome() {
 
-  if ((BASE->isRunning()) || (TOP->isRunning())) {
-    BASE->stopMove();
+  if (TOP->isRunning()) {
     TOP->stopMove();
-    while ((BASE->isRunning()) || (TOP->isRunning())) {}
+    while (TOP->isRunning());
   }
 
-  bool exit_flag_base = false;
   bool exit_flag_top = false;
-
-  BASE->setSpeedInHz(BASE_SPEED);  
-  BASE->setAcceleration(BASE_ACC);
-  BASE->applySpeedAcceleration();
 
   TOP->setSpeedInHz(MAN_SPEED);  
   TOP->setAcceleration(MAN_ACC);
   TOP->applySpeedAcceleration();
 
-  BASE->runForward();
-
-  while (!exit_flag_base) {
-
-    if (digitalRead(ADIO8)) {
-      BASE->forceStop();
-      exit_flag_base = true;
-    }
-
-  }
-
   TOP->runBackward();
+
+  uint32_t timeout = millis();
 
   while (!exit_flag_top) {
 
-    if (digitalRead(DIO9)) {
+    if ((millis() - timeout) > 10000) {
+      TOP->forceStop();
+      exit_flag_top = true;
+    }
+
+    if (digitalRead(ADIO3)) {
       TOP->forceStop();
       exit_flag_top = true;
     }
 
   }
 
-  delay(100);
+  while(TOP->isRunning());
 
-  BASE->move(ZERO_OFFSET_BASE);
   TOP->move(ZERO_OFFSET_TOP);
 
-  while ((BASE->isRunning()) || (TOP->isRunning())) {}
+  while (TOP->isRunning());
 
-  BASE->setCurrentPosition(0);
   TOP->setCurrentPosition(0);
 
   HOMED = true;
@@ -645,6 +612,8 @@ void enableMotor() {
 
 void act_BASE(int32_t pos, float tempo) {
 
+  if (pos == 0) return;
+
   long V_max, A_cal;
 
   float V_media = (float)abs(pos) / tempo;
@@ -661,6 +630,8 @@ void act_BASE(int32_t pos, float tempo) {
 }
 
 void act_TOP(int32_t pos, float tempo) {
+
+  if (pos == 0) return;
 
   long V_max, A_cal;
 

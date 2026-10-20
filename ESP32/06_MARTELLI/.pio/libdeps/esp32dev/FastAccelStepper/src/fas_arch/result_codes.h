@@ -1,6 +1,27 @@
 #ifndef FAS_RESULT_CODES_H
 #define FAS_RESULT_CODES_H
 
+#include <stdint.h>
+
+#if defined(__AVR__)
+#include <avr/pgmspace.h>
+#define FAS_PSTR(s) (reinterpret_cast<const char*>(PSTR(s)))
+#else
+#define FAS_PSTR(s) (s)
+#endif
+
+// Cause of a stop, for a planner that co-drives the same queue. Set by
+// FastAccelStepper::stopMove()/forceStop()/forceStopAndNewPosition() and
+// read-and-cleared via FastAccelStepper::takeStopCause(); see
+// extras/doc/engine_sources.md. Shared here so a duck-typed n-axis planner
+// and the test SimPort can name the type without including FastAccelStepper.h.
+enum class StepperStopCause : uint8_t {
+  None = 0,
+  StopMove = 1,
+  ForceStop = 2,
+  ForceStopAndNewPosition = 3,
+};
+
 // ### Result codes for addQueueEntry() function of FastAccelStepper
 enum class AqeResultCode : int8_t {
   OK = 0,
@@ -8,48 +29,72 @@ enum class AqeResultCode : int8_t {
   DirPinIsBusy = 2,
   WaitForEnablePinActive = 3,
   DeviceNotReady = 4,
+  DirPin2msPauseAdded = 5,
+  DirChangePauseInjected = 6,
   ErrorTicksTooLow = -1,
   ErrorEmptyQueueToStart = -2,
-  ErrorNoDirPinToToggle = -3
+  ErrorNoDirPinToToggle = -3,
+  // The command-admission latch is set (queue_add_entry.cpp, ignore_commands).
+  // A forceStop() / forceStopAndNewPosition() sets it; only resumeCommands()
+  // clears it. MUST stay -5: MoveTimedResultCode::ErrorMoveTooLarge occupies
+  // -4 and tmrFrom() is a value-preserving cast, so -4 here would report a
+  // suspended queue as MOVE_TIMED_TOO_LARGE_ERROR.
+  ErrorCommandsSuspended = -5
 };
 
 static inline bool aqeRetry(AqeResultCode code) {
   return (static_cast<int8_t>(code)) > 0;
 }
+static inline bool aqeRetryImmediately(AqeResultCode code) {
+  return code == AqeResultCode::DirChangePauseInjected;
+}
 static inline bool aqeIsOk(AqeResultCode status) {
   return status == AqeResultCode::OK;
+}
+static inline bool aqeIsPauseInjected(AqeResultCode code) {
+  return (code == AqeResultCode::DirPin2msPauseAdded) ||
+         (code == AqeResultCode::DirChangePauseInjected);
 }
 
 static inline const char* toString(AqeResultCode code) {
   switch (code) {
     case AqeResultCode::OK:
-      return "OK";
+      return FAS_PSTR("OK");
     case AqeResultCode::QueueFull:
-      return "Queue Full";
+      return FAS_PSTR("Queue Full");
+    case AqeResultCode::DirPin2msPauseAdded:
+      return FAS_PSTR("Dir Pin 2ms Pause Added");
+    case AqeResultCode::DirChangePauseInjected:
+      return FAS_PSTR("Dir Change Pause Injected");
     case AqeResultCode::DirPinIsBusy:
-      return "Direction Pin is Busy";
+      return FAS_PSTR("Direction Pin is Busy");
     case AqeResultCode::WaitForEnablePinActive:
-      return "Waiting for Enable Pin Active";
+      return FAS_PSTR("Waiting for Enable Pin Active");
     case AqeResultCode::DeviceNotReady:
-      return "Device Not Ready";
+      return FAS_PSTR("Device Not Ready");
     case AqeResultCode::ErrorTicksTooLow:
-      return "Error: Ticks Too Low";
+      return FAS_PSTR("Error: Ticks Too Low");
     case AqeResultCode::ErrorEmptyQueueToStart:
-      return "Error: Empty Queue to Start";
+      return FAS_PSTR("Error: Empty Queue to Start");
     case AqeResultCode::ErrorNoDirPinToToggle:
-      return "Error: No Direction Pin to Toggle";
+      return FAS_PSTR("Error: No Direction Pin to Toggle");
+    case AqeResultCode::ErrorCommandsSuspended:
+      return FAS_PSTR("Error: Commands Suspended");
     default:
-      return "Unknown Error";
+      return FAS_PSTR("Unknown Error");
   }
 }
 #define AQE_OK AqeResultCode::OK
 #define AQE_QUEUE_FULL AqeResultCode::QueueFull
+#define AQE_DIR_PIN_2MS_PAUSE_ADDED AqeResultCode::DirPin2msPauseAdded
+#define AQE_DIR_CHANGE_PAUSE_INJECTED AqeResultCode::DirChangePauseInjected
 #define AQE_DIR_PIN_IS_BUSY AqeResultCode::DirPinIsBusy
 #define AQE_WAIT_FOR_ENABLE_PIN_ACTIVE AqeResultCode::WaitForEnablePinActive
 #define AQE_DEVICE_NOT_READY AqeResultCode::DeviceNotReady
 #define AQE_ERROR_TICKS_TOO_LOW AqeResultCode::ErrorTicksTooLow
 #define AQE_ERROR_EMPTY_QUEUE_TO_START AqeResultCode::ErrorEmptyQueueToStart
 #define AQE_ERROR_NO_DIR_PIN_TO_TOGGLE AqeResultCode::ErrorNoDirPinToToggle
+#define AQE_ERROR_COMMANDS_SUSPENDED AqeResultCode::ErrorCommandsSuspended
 
 // Define the MoveResultCode enum with equivalent values
 enum class MoveResultCode : int8_t {
@@ -64,19 +109,18 @@ static inline bool moveIsOk(MoveResultCode status) {
   return status == MoveResultCode::OK;
 }
 
-// Function to convert MoveResultCode to string for debugging/errors
 static inline const char* toString(MoveResultCode code) {
   switch (code) {
     case MoveResultCode::OK:
-      return "OK";
+      return toString(AqeResultCode::OK);
     case MoveResultCode::ErrorNoDirectionPin:
-      return "Error: No Direction Pin";
+      return FAS_PSTR("Error: No Direction Pin");
     case MoveResultCode::ErrorSpeedIsUndefined:
-      return "Error: Speed is Undefined";
+      return FAS_PSTR("Error: Speed is Undefined");
     case MoveResultCode::ErrorAccelerationIsUndefined:
-      return "Error: Acceleration is Undefined";
+      return FAS_PSTR("Error: Acceleration is Undefined");
     default:
-      return "Unknown Error";
+      return FAS_PSTR("Unknown Error");
   }
 }
 
@@ -87,19 +131,28 @@ static inline const char* toString(MoveResultCode code) {
 #define MOVE_ERR_ACCELERATION_IS_UNDEFINED \
   MoveResultCode::ErrorAccelerationIsUndefined
 
-// Define the MoveResultCode enum with equivalent values
+// MoveTimedResultCode values 0..6 mirror AqeResultCode so that tmrFrom() is a
+// value-preserving cast; MoveBusy/MoveEmpty sit above the AQE range to avoid
+// aliasing AqeResultCode::DirChangePauseInjected. Every negative AqeResultCode
+// needs its mirror entry here for the same reason: AqeResultCode reserves -4
+// for nothing, but ErrorCommandsSuspended is -5 precisely because
+// ErrorMoveTooLarge (-4) already sits in this enum, and a -4 AqeResultCode
+// would cast to MOVE_TIMED_TOO_LARGE_ERROR.
 enum class MoveTimedResultCode : int8_t {
   OK = 0,
   QueueFull = 1,
   DirPinIsBusy = 2,
   WaitForEnablePinActive = 3,
   DeviceNotReady = 4,
+  DirPin2msPauseAdded = 5,
+  DirChangePauseInjected = 6,
+  MoveBusy = 7,
+  MoveEmpty = 8,
   ErrorTicksTooLow = -1,
   ErrorEmptyQueueToStart = -2,
   ErrorNoDirPinToToggle = -3,
-  MoveBusy = 5,
-  MoveEmpty = 6,
   ErrorMoveTooLarge = -4,
+  ErrorCommandsSuspended = -5,
 };
 
 static inline bool moveTimedIsOk(MoveTimedResultCode status) {
@@ -110,39 +163,45 @@ static inline MoveTimedResultCode tmrFrom(AqeResultCode res) {
   return static_cast<MoveTimedResultCode>(res);
 }
 
-// Function to convert MoveResultCode to string for debugging/errors
 static inline const char* toString(MoveTimedResultCode code) {
   switch (code) {
     case MoveTimedResultCode::OK:
-      return "OK";
+      return toString(AqeResultCode::OK);
     case MoveTimedResultCode::QueueFull:
-      return "Queue Full";
+      return toString(AqeResultCode::QueueFull);
     case MoveTimedResultCode::DirPinIsBusy:
-      return "Direction Pin is Busy";
+      return toString(AqeResultCode::DirPinIsBusy);
     case MoveTimedResultCode::WaitForEnablePinActive:
-      return "Waiting for Enable Pin Active";
+      return toString(AqeResultCode::WaitForEnablePinActive);
     case MoveTimedResultCode::DeviceNotReady:
-      return "Device Not Ready";
-    case MoveTimedResultCode::ErrorTicksTooLow:
-      return "Error: Ticks Too Low";
-    case MoveTimedResultCode::ErrorEmptyQueueToStart:
-      return "Error: Empty Queue to Start";
-    case MoveTimedResultCode::ErrorNoDirPinToToggle:
-      return "Error: No Direction Pin to Toggle";
+      return toString(AqeResultCode::DeviceNotReady);
+    case MoveTimedResultCode::DirPin2msPauseAdded:
+      return toString(AqeResultCode::DirPin2msPauseAdded);
+    case MoveTimedResultCode::DirChangePauseInjected:
+      return toString(AqeResultCode::DirChangePauseInjected);
     case MoveTimedResultCode::MoveBusy:
-      return "Move still ongoing";
+      return FAS_PSTR("Move still ongoing");
     case MoveTimedResultCode::MoveEmpty:
-      return "Queue has been empty";
+      return FAS_PSTR("Queue has been empty");
+    case MoveTimedResultCode::ErrorTicksTooLow:
+      return toString(AqeResultCode::ErrorTicksTooLow);
+    case MoveTimedResultCode::ErrorEmptyQueueToStart:
+      return toString(AqeResultCode::ErrorEmptyQueueToStart);
+    case MoveTimedResultCode::ErrorNoDirPinToToggle:
+      return toString(AqeResultCode::ErrorNoDirPinToToggle);
     case MoveTimedResultCode::ErrorMoveTooLarge:
-      return "Error: Move too large";
+      return FAS_PSTR("Error: Move too large");
+    case MoveTimedResultCode::ErrorCommandsSuspended:
+      return toString(AqeResultCode::ErrorCommandsSuspended);
     default:
-      return "Unknown Error";
+      return FAS_PSTR("Unknown Error");
   }
 }
 #define MOVE_TIMED_OK MoveTimedResultCode::OK
 #define MOVE_TIMED_BUSY MoveTimedResultCode::MoveBusy
 #define MOVE_TIMED_EMPTY MoveTimedResultCode::MoveEmpty
 #define MOVE_TIMED_TOO_LARGE_ERROR MoveTimedResultCode::ErrorMoveTooLarge
+#define MOVE_TIMED_COMMANDS_SUSPENDED MoveTimedResultCode::ErrorCommandsSuspended
 
 enum class DelayResultCode : int8_t { OK = 0, TOO_LOW = -1, TOO_HIGH = -2 };
 
@@ -153,13 +212,13 @@ static inline bool delayIsValid(DelayResultCode status) {
 static inline const char* toString(DelayResultCode status) {
   switch (status) {
     case DelayResultCode::OK:
-      return "OK";
+      return toString(AqeResultCode::OK);
     case DelayResultCode::TOO_LOW:
-      return "Delay Too Low";
+      return FAS_PSTR("Delay Too Low");
     case DelayResultCode::TOO_HIGH:
-      return "Delay Too High";
+      return FAS_PSTR("Delay Too High");
     default:
-      return "Unknown Delay Status";
+      return FAS_PSTR("Unknown Delay Status");
   }
 }
 

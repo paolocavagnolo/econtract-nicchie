@@ -62,6 +62,12 @@ uint8_t STATE = 0; // 0 REMOTE - 1 AUTO - 2 MAN
 
 #define ATTESA_ATTUATORE 5000
 
+// 4 6 11 12 - 20 22 - 30 32 33 34 35 36 37 
+
+int funz_ass_1[] = {4, 6, 11, 12};
+int funz_ass_2[] = {20, 22};
+int funz_ass_3[] = {30, 32, 33, 34, 35, 36, 37};
+
 void spegni_tutti_relay() {
   relay_single_write(0x00, 0xFF, false);
   delay(300);
@@ -185,6 +191,7 @@ int C = 0;
 uint8_t MS[3]{0};
 int AS = -1, old_AS = -1;
 
+
 void loop() {
 
   //test_motore_1();
@@ -280,18 +287,11 @@ void test_alzata_in3() {
       Serial.print("ASSE ");
       Serial.println(AS);
 
-      if (AS == 2) {
-        for (uint8_t j=0; j<3; j++) {
-          MS[j] = random(13);
-          while ((MS[j] == 0) || (MS[j] == 3) || (MS[j] == 6) || (MS[j] == 7)) {
-            MS[j] = random(13);
-          }
-        }
-      } else {
-        MS[0] = random(13);
-        MS[1] = random(13);
-        MS[2] = random(13);
-      }
+      
+
+      MS[0] = funz_ass_1[random(4)];
+      MS[1] = funz_ass_2[random(2)];
+      MS[2] = funz_ass_3[random(7)];
 
       Serial.print("MARTELLI NUMERO: ");
 
@@ -489,11 +489,11 @@ void test_motorino(uint8_t n) {
   relay_double_write(modulo_ws(nn), numero_relay(nn), true);
   Serial.print("acceso ");
   Serial.println(n);
-  delay(5000);
+  delay(1000);
   relay_double_write(modulo_ws(nn), numero_relay(nn), false);
   Serial.print("spento ");
   Serial.println(n);
-  delay(6000);
+  delay(1000);
 }
 
 void test_motore_1() {

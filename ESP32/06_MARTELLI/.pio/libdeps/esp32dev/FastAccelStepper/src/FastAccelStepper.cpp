@@ -1,5 +1,6 @@
 #include "FastAccelStepper.h"
-#include "StepperISR.h"
+#include "fas_queue/stepper_queue.h"
+#include "fas_member/move_timed.h"
 
 // This define in order to not shoot myself.
 #ifndef TEST
@@ -9,214 +10,11 @@
 
 // Here are the global variables to interface with the interrupts
 
+StepperQueue* FastAccelStepper::_queue() const {
+  return FAS_QUEUE_PTR(_queue_num);
+}
+
 // To realize the 1 Hz debug led
-static uint8_t fas_ledPin = PIN_UNDEFINED;
-static uint16_t fas_debug_led_cnt = 0;
-
-// dynamic allocation seems to not work so well on avr
-#if !defined(SUPPORT_STEPPER_CONNECT_BY_DRIVER)
-FastAccelStepper fas_stepper[MAX_STEPPER];
-#endif
-
-//*************************************************************************************************
-//*************************************************************************************************
-#if defined(SUPPORT_CPU_AFFINITY)
-void FastAccelStepperEngine::init(uint8_t cpu_core) {
-  _externalCallForPin = NULL;
-  _stepper_cnt = 0;
-  for (uint8_t i = 0; i < MAX_STEPPER; i++) {
-    _stepper[i] = NULL;
-  }
-  fas_init_engine(this, cpu_core);
-}
-#else
-void FastAccelStepperEngine::init() {
-  _externalCallForPin = NULL;
-  _stepper_cnt = 0;
-  for (uint8_t i = 0; i < MAX_STEPPER; i++) {
-    _stepper[i] = NULL;
-  }
-#if defined(SUPPORT_RP_PICO)
-  claimed_pios = 0;
-#endif
-  fas_init_engine(this);
-}
-#endif
-
-void FastAccelStepperEngine::setExternalCallForPin(
-    bool (*func)(uint8_t pin, uint8_t value)) {
-  _externalCallForPin = func;
-}
-//*************************************************************************************************
-bool FastAccelStepperEngine::_isValidStepPin(uint8_t step_pin) {
-  return StepperQueue::isValidStepPin(step_pin);
-}
-//*************************************************************************************************
-bool FastAccelStepperEngine::isDirPinBusy(uint8_t dir_pin,
-                                          uint8_t except_stepper) {
-  for (uint8_t i = 0; i < MAX_STEPPER; i++) {
-    if (i != except_stepper) {
-      FastAccelStepper* s = _stepper[i];
-      if (s) {
-        if (s->getDirectionPin() == dir_pin) {
-          if (s->isQueueRunning()) {
-            return true;
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-//*************************************************************************************************
-#if !defined(SUPPORT_SELECT_DRIVER_TYPE)
-FastAccelStepper* FastAccelStepperEngine::stepperConnectToPin(uint8_t step_pin)
-#else
-FastAccelStepper* FastAccelStepperEngine::stepperConnectToPin(
-    uint8_t step_pin, FasDriver driver_type)
-#endif
-{
-  // Check if already connected
-  for (uint8_t i = 0; i < MAX_STEPPER; i++) {
-    FastAccelStepper* s = _stepper[i];
-    if (s) {
-      if (s->getStepPin() == step_pin) {
-        return NULL;
-      }
-    }
-  }
-  if (!_isValidStepPin(step_pin)) {
-    return NULL;
-  }
-#if !defined(SUPPORT_SELECT_DRIVER_TYPE)
-  int8_t fas_stepper_num = StepperQueue::queueNumForStepPin(step_pin);
-  if (fas_stepper_num < 0) {  // flexible, so just choose next
-    if (_stepper_cnt >= MAX_STEPPER) {
-      return NULL;
-    }
-    fas_stepper_num = _stepper_cnt;
-  }
-#else
-  uint8_t queue_from = 0;
-  uint8_t queue_to = QUEUES_MCPWM_PCNT + QUEUES_RMT;
-  if (driver_type == DRIVER_MCPWM_PCNT) {
-    queue_to = QUEUES_MCPWM_PCNT;
-  } else if (driver_type == DRIVER_RMT) {
-    queue_from = QUEUES_MCPWM_PCNT;
-  }
-  int8_t fas_stepper_num = -1;
-  for (uint8_t i = queue_from; i < queue_to; i++) {
-    FastAccelStepper* s = _stepper[i];
-    if (s == NULL) {
-      fas_stepper_num = i;
-      break;
-    }
-  }
-  if (fas_stepper_num < 0) {
-    return NULL;
-  }
-#endif
-  _stepper_cnt++;
-
-  FastAccelStepper* s = &fas_stepper[fas_stepper_num];
-  bool success = s->init(this, fas_stepper_num, step_pin);
-  if (!success) {
-    return NULL;
-  }
-  _stepper[fas_stepper_num] = s;
-  for (uint8_t i = 0; i < MAX_STEPPER; i++) {
-    const FastAccelStepper* sx = _stepper[i];
-    if (sx) {
-      fas_queue[sx->_queue_num].adjustSpeedToStepperCount(_stepper_cnt);
-    }
-  }
-  return s;
-}
-//*************************************************************************************************
-void FastAccelStepperEngine::setDebugLed(uint8_t ledPin) {
-  fas_ledPin = ledPin;
-  PIN_OUTPUT(fas_ledPin, LOW);
-}
-//*************************************************************************************************
-void FastAccelStepperEngine::manageSteppers() {
-#ifdef DEBUG_LED_HALF_PERIOD
-  if (fas_ledPin != PIN_UNDEFINED) {
-    fas_debug_led_cnt++;
-    if (fas_debug_led_cnt == DEBUG_LED_HALF_PERIOD) {
-      digitalWrite(fas_ledPin, HIGH);
-    }
-    if (fas_debug_led_cnt == 2 * DEBUG_LED_HALF_PERIOD) {
-      digitalWrite(fas_ledPin, LOW);
-      fas_debug_led_cnt = 0;
-    }
-  }
-#endif
-  for (uint8_t i = 0; i < MAX_STEPPER; i++) {
-    FastAccelStepper* s = _stepper[i];
-    if (s) {
-#ifdef SUPPORT_EXTERNAL_DIRECTION_PIN
-      if (s->externalDirPinChangeCompletedIfNeeded()) {
-        s->fill_queue();
-      }
-#else
-      s->fill_queue();
-#endif
-    }
-  }
-
-  // Check for auto disable
-  for (uint8_t i = 0; i < MAX_STEPPER; i++) {
-    FastAccelStepper* s = _stepper[i];
-    if (s) {
-      if (s->needAutoDisable()) {
-        uint8_t high_active_pin = s->getEnablePinHighActive();
-        uint8_t low_active_pin = s->getEnablePinLowActive();
-
-        // fasDisableInterrupts(); // TODO
-        bool agree = true;
-        for (uint8_t j = 0; j < MAX_STEPPER; j++) {
-          if (i != j) {
-            FastAccelStepper* other = _stepper[j];
-            if (other) {
-              if (other->usesAutoEnablePin(high_active_pin) ||
-                  other->usesAutoEnablePin(low_active_pin)) {
-                if (!other->agreeWithAutoDisable()) {
-                  agree = false;
-                  break;
-                }
-              }
-            }
-          }
-        }
-        if (agree) {
-          for (uint8_t j = 0; j < MAX_STEPPER; j++) {
-            FastAccelStepper* current = _stepper[j];
-            if (current) {
-              if (current->usesAutoEnablePin(high_active_pin) ||
-                  current->usesAutoEnablePin(low_active_pin)) {
-                // if successful, then the _auto_disable_delay_counter is zero
-                // Otherwise in next loop will be checked for auto disable again
-                current->disableOutputs();
-              }
-            }
-          }
-        }
-        // fasEnableInterrupts();
-      }
-    }
-  }
-
-  // Update the auto disable counters
-  for (uint8_t i = 0; i < MAX_STEPPER; i++) {
-    FastAccelStepper* s = _stepper[i];
-    if (s) {
-      fasDisableInterrupts();
-      // update the counters down to 1
-      s->updateAutoDisable();
-      fasEnableInterrupts();
-    }
-  }
-}
 
 //*************************************************************************************************
 //*************************************************************************************************
@@ -233,131 +31,47 @@ void FastAccelStepperEngine::manageSteppers() {
 //*************************************************************************************************
 
 //*************************************************************************************************
-AqeResultCode FastAccelStepper::addQueueEntry(
-    const struct stepper_command_s* cmd, bool start) {
-  StepperQueue* q = &fas_queue[_queue_num];
-  if (cmd == NULL) {
-    return q->addQueueEntry(NULL, start);
-  }
-  if (cmd->ticks < q->max_speed_in_ticks) {
-    return AQE_ERROR_TICKS_TOO_LOW;
-  }
-
-  if (_dirPin != PIN_UNDEFINED) {
-    if (!isQueueRunning()) {
-      if (_engine != NULL) {
-        if (_engine->isDirPinBusy(_dirPin, _queue_num)) {
-          return AQE_DIR_PIN_IS_BUSY;
-        }
+bool FastAccelStepper::handleExternalDirectionPin(StepperQueue* q,
+                                                  bool count_up) {
+  if (_pendingExternalDirState != ExtDirPendingState::None) {
+    if (_engine->_externalCallForPin) {
+      uint8_t desiredPinState =
+          (_pendingExternalDirState == ExtDirPendingState::High) ? HIGH : LOW;
+      bool newState = _engine->_externalCallForPin(_dirPin, desiredPinState);
+      if (newState == (desiredPinState == HIGH)) {
+        _pendingExternalDirState = ExtDirPendingState::None;
+#if defined(SUPPORT_PAUSE_CMD_COUNTING)
+        q->clear_pause_stats();
+#endif
       }
     }
-  } else {
-    if (!cmd->count_up) {
-      return AQE_ERROR_NO_DIR_PIN_TO_TOGGLE;
+    if (_pendingExternalDirState != ExtDirPendingState::None) {
+      return false;
     }
   }
-
-  AqeResultCode res = AQE_OK;
-  if (_autoEnable) {
-    fasDisableInterrupts();
-    uint16_t delay_counter = _auto_disable_delay_counter;
-    fasEnableInterrupts();
-    if (delay_counter == 0) {
-      // outputs are disabled
-      if (!enableOutputs()) {
-        return AQE_WAIT_FOR_ENABLE_PIN_ACTIVE;
-      }
-      // if on delay is defined, fill queue if required amount of pauses before
-      // the first step
-      if (_on_delay_ticks > 0) {
-        uint32_t delay = _on_delay_ticks;
-        // this delay sets count_up appropriately. If this is shorter than
-        // dir_change_delay_ticks, then extend accordingly
-        if ((delay < _dir_change_delay_ticks) &&
-            (q->queue_end.count_up != cmd->count_up)) {
-          delay = _dir_change_delay_ticks;
-        }
-        while (delay > 0) {
-          uint32_t ticks = delay >> 1;
-          uint16_t ticks_u16 = ticks;
-          if (ticks > 65535) {
-            ticks_u16 = 65535;
-          } else if (ticks < 32768) {
-            ticks_u16 = delay;
-          }
-          struct stepper_command_s start_cmd = {
-              .ticks = ticks_u16, .steps = 0, .count_up = cmd->count_up};
-          q->addQueueEntry(&start_cmd, false);
-          delay -= ticks_u16;
-        }
-        res = q->addQueueEntry(NULL, start);
-        if (res != AQE_OK) {
-          return res;
-        }
-      }
+  if (q->queue_end.count_up != count_up) {
+    if (q->hasStepsInQueue()) {
+      return false;
     }
-  }
-  if (q->queue_end.count_up != cmd->count_up) {
-    // Change of direction has been detected.
-    if (_dirPin & PIN_EXTERNAL_FLAG) {
-      // for external pins, two pause commands need to be added. The first one
-      // with the dir pin change. The second one just a pause.
-      // The queue's addQueueEntry() will set repeat_entry for the command entry
-      if (q->queueEntries() > QUEUE_LEN - 2) {
-        // no space for two commands => do nothing and return QUEUE_FULL
-        return AQE_QUEUE_FULL;
+    if (_engine->_externalCallForPin) {
+      uint8_t desiredPinState = (count_up == _dirHighCountsUp) ? HIGH : LOW;
+      bool newState = _engine->_externalCallForPin(_dirPin, desiredPinState);
+      if (newState != (desiredPinState == HIGH)) {
+        _pendingExternalDirState = (desiredPinState == HIGH)
+                                       ? ExtDirPendingState::High
+                                       : ExtDirPendingState::Low;
+        return false;
       }
-      struct stepper_command_s start_cmd = {
-          .ticks = US_TO_TICKS(500), .steps = 0, .count_up = cmd->count_up};
-      res = q->addQueueEntry(&start_cmd, start);
-      if (res != AQE_OK) {
-        return res;
-      }
-      res = q->addQueueEntry(&start_cmd, start);
-      if (res != AQE_OK) {
-        return res;
-      }
-    } else if ((_dir_change_delay_ticks != 0) && (cmd->steps != 0)) {
-      // add pause command to delay dir pin change to first step
-      struct stepper_command_s start_cmd = {.ticks = _dir_change_delay_ticks,
-                                            .steps = 0,
-                                            .count_up = cmd->count_up};
-      res = q->addQueueEntry(&start_cmd, start);
-      if (res != AQE_OK) {
-        return res;
-      }
-    }
-  }
-  res = q->addQueueEntry(cmd, start);
-  if (_autoEnable) {
-    if (res == AQE_OK) {
-      fasDisableInterrupts();
-      _auto_disable_delay_counter = _off_delay_count;
-      fasEnableInterrupts();
-    }
-  }
-
-  return res;
-}
-
-#ifdef SUPPORT_EXTERNAL_DIRECTION_PIN
-bool FastAccelStepper::externalDirPinChangeCompletedIfNeeded() {
-  StepperQueue* q = &fas_queue[_queue_num];
-  if ((_dirPin != PIN_UNDEFINED) && ((_dirPin & PIN_EXTERNAL_FLAG) != 0)) {
-    if (q->isOnRepeatingEntry()) {
-      if (_engine->_externalCallForPin) {
-        uint8_t state = q->dirPinState();
-        bool newState = _engine->_externalCallForPin(_dirPin, state);
-        if (newState != state) {
-          return false;
-        }
-        q->clearRepeatingFlag();
-      }
+#if defined(SUPPORT_PAUSE_CMD_COUNTING)
+      q->clear_pause_stats();
+#endif
     }
   }
   return true;
 }
-#endif
+
+//*************************************************************************************************
+#include "fas_member/add_queue_entry.h"
 
 //*************************************************************************************************
 // fill_queue generates commands to the stepper for executing a ramp
@@ -380,11 +94,12 @@ void FastAccelStepper::fill_queue() {
     return;
   }
   // check if addition of commands is suspended (due to forceStopAndNewPosition)
-  StepperQueue* q = &fas_queue[_queue_num];
-  // if force stop has been called, then ignore_commands is true and ramp
-  // stopped. So the ramp generator will not create a new command, unless new
-  // move command has been given after forceStop..(). So we just clear the flag
-  q->ignore_commands = false;
+  StepperQueue* q = _queue();
+  // if force stop has been called, then the queue's admission latch is set and
+  // the ramp is stopped. So the ramp generator will not create a new command,
+  // unless a new move command has been given after forceStop..(). So we just
+  // clear the latch.
+  q->resumeCommands();
 
   // preconditions are fulfilled, so create the command(s)
   NextCommand cmd;
@@ -404,7 +119,9 @@ void FastAccelStepper::fill_queue() {
     AqeResultCode res = AQE_OK;
     _rg.getNextCommand(&q->queue_end, &cmd);
     if (cmd.command.ticks != 0) {
-      res = addQueueEntry(&cmd.command, !delayed_start);
+      do {
+        res = addQueueEntry(&cmd.command, !delayed_start);
+      } while (aqeRetryImmediately(res));
     }
     if (res == AQE_OK) {
       _rg.afterCommandEnqueued(&cmd);
@@ -504,39 +221,77 @@ bool FastAccelStepper::usesAutoEnablePin(uint8_t pin) {
   return false;
 }
 
-bool FastAccelStepper::init(FastAccelStepperEngine* engine, uint8_t num,
+void FastAccelStepper::init(FastAccelStepperEngine* engine, uint8_t num,
                             uint8_t step_pin) {
-#if (TEST_MEASURE_ISR_SINGLE_FILL == 1)
-  // For run time measurement
-  max_micros = 0;
-#endif
+  __builtin_memset(this, 0, sizeof(*this));
   _engine = engine;
-  _autoEnable = false;
-  _dir_change_delay_ticks = 0;
-  _on_delay_ticks = 0;
   _off_delay_count = 1;
-  _auto_disable_delay_counter = 0;
   _stepPin = step_pin;
   _dirHighCountsUp = true;
   _dirPin = PIN_UNDEFINED;
   _enablePinHighActive = PIN_UNDEFINED;
   _enablePinLowActive = PIN_UNDEFINED;
   _forward_planning_in_ticks = TICKS_PER_S / 50;
+  _pendingExternalDirState = ExtDirPendingState::None;
   _rg.init();
-
   _queue_num = num;
-  bool success = fas_queue[_queue_num].init(engine, _queue_num, step_pin);
-#if defined(SUPPORT_ESP32_PULSE_COUNTER) && (ESP_IDF_VERSION_MAJOR == 5)
+#if defined(SUPPORT_ESP32_PULSE_COUNTER) && (ESP_IDF_VERSION_MAJOR >= 5)
   _attached_pulse_unit = NULL;
 #endif
 #if defined(SUPPORT_ESP32_PULSE_COUNTER) && (ESP_IDF_VERSION_MAJOR == 4)
   _attached_pulse_cnt_unit = -1;
 #endif
-  return success;
 }
-uint8_t FastAccelStepper::getStepPin() { return _stepPin; }
+uint8_t FastAccelStepper::getStepPin() const { return _stepPin; }
+
+uint16_t FastAccelStepper::getDirChangeBeforeTicks() const {
+  if (_dirPin == PIN_UNDEFINED) {
+    return 0;
+  }
+  StepperQueue* q = _queue();
+  uint16_t t = 0;
+#if defined(SUPPORT_ESP32)
+  t = esp32_before_pause_ticks(q);
+#endif
+#if defined(BEFORE_DIR_CHANGE_DELAY_TICKS)
+  if (t == 0) {
+    t = BEFORE_DIR_CHANGE_DELAY_TICKS(q);
+  }
+#endif
+  (void)q;
+  if (t == 0) {
+    return 0;
+  }
+  return fas_max(t, (uint16_t)MIN_CMD_TICKS);
+}
+
+uint16_t FastAccelStepper::getDirChangeAfterTicks() const {
+  if (_dirPin == PIN_UNDEFINED) {
+    return 0;
+  }
+  if (_dirPin & PIN_EXTERNAL_FLAG) {
+    return US_TO_TICKS((uint16_t)2000);
+  }
+  uint16_t t = _dir_change_delay_ticks;
+#if defined(SUPPORT_ESP32)
+  t = fas_max(t, esp32_after_pause_ticks(_queue()));
+#endif
+#if defined(AFTER_DIR_CHANGE_DELAY_TICKS)
+  t = fas_max(t, AFTER_DIR_CHANGE_DELAY_TICKS(_queue()));
+#endif
+  if (t == 0) {
+    return 0;
+  }
+  return fas_max(t, (uint16_t)MIN_CMD_TICKS);
+}
+
 void FastAccelStepper::setDirectionPin(uint8_t dirPin, bool dirHighCountsUp,
                                        uint16_t dir_change_delay_us) {
+#if defined(SUPPORT_ESP32_I2S) && defined(SUPPORT_SELECT_DRIVER_TYPE)
+  if (_queue()->_driver_type == FasDriver::I2S_DIRECT) {
+    dirPin &= (uint8_t)~PIN_I2S_FLAG;
+  }
+#endif
   _dirPin = dirPin;
   _dirHighCountsUp = dirHighCountsUp;
   if (_dirPin != PIN_UNDEFINED) {
@@ -544,11 +299,23 @@ void FastAccelStepper::setDirectionPin(uint8_t dirPin, bool dirHighCountsUp,
       if (_engine->_externalCallForPin) {
         _engine->_externalCallForPin(_dirPin, dirHighCountsUp ? HIGH : LOW);
       }
-    } else {
+    } else if (!isI2sMuxPin(_dirPin)) {
+      // An I2S mux direction slot is not a GPIO. PIN_OUTPUT() on
+      // `PIN_I2S_FLAG | slot` addresses pin 0x40+slot, which does not exist --
+      // measured on an ESP32-DevKitC, one
+      // "gpio_set_direction: GPIO number error" and one
+      // "gpio_set_level: GPIO output gpio_num error" per stepper, from a
+      // CONFIG the host had every right to send. The flag is kept in `_dirPin`
+      // (the queue needs it to find the bit, and I2S_DIRECT is masked above),
+      // so the test has to be here rather than on the argument: nothing else
+      // distinguishes a mux slot from an external pin.
+      //
+      // Skipping the write is not a loss of the initial level: setDirPin()
+      // below applies it through i2sMuxSetBit() for exactly this case.
       PIN_OUTPUT(dirPin, dirHighCountsUp ? HIGH : LOW);
     }
   }
-  fas_queue[_queue_num].setDirPin(dirPin, dirHighCountsUp);
+  _queue()->setDirPin(dirPin, dirHighCountsUp);
   if (dir_change_delay_us != 0) {
     if (dir_change_delay_us > MAX_DIR_DELAY_US) {
       dir_change_delay_us = MAX_DIR_DELAY_US;
@@ -563,6 +330,12 @@ void FastAccelStepper::setDirectionPin(uint8_t dirPin, bool dirHighCountsUp,
 }
 void FastAccelStepper::setEnablePin(uint8_t enablePin,
                                     bool low_active_enables_stepper) {
+  // An I2S mux enable slot is not a GPIO either, so PIN_OUTPUT() on
+  // `PIN_I2S_FLAG | slot` would address pin 0x40+slot. The level is applied
+  // through the mux by esp32_set_enable_pin_state() instead -- see the same
+  // guard in setDirectionPin(). A mux enable slot is documented as legal in
+  // extras/doc/platforms/esp32.md, so this path is reachable, not theoretical.
+  const bool mux_pin = isI2sMuxPin(enablePin);
   if (low_active_enables_stepper) {
     _enablePinLowActive = enablePin;
     if (enablePin != PIN_UNDEFINED) {
@@ -570,7 +343,7 @@ void FastAccelStepper::setEnablePin(uint8_t enablePin,
         if (_engine->_externalCallForPin) {
           _engine->_externalCallForPin(enablePin, HIGH);
         }
-      } else {
+      } else if (!mux_pin) {
         PIN_OUTPUT(enablePin, HIGH);
         if (_enablePinHighActive == enablePin) {
           _enablePinHighActive = PIN_UNDEFINED;
@@ -584,7 +357,7 @@ void FastAccelStepper::setEnablePin(uint8_t enablePin,
         if (_engine->_externalCallForPin) {
           _engine->_externalCallForPin(enablePin, LOW);
         }
-      } else {
+      } else if (!mux_pin) {
         PIN_OUTPUT(enablePin, LOW);
         if (_enablePinLowActive == enablePin) {
           _enablePinLowActive = PIN_UNDEFINED;
@@ -623,7 +396,7 @@ void FastAccelStepper::setDelayToDisable(uint16_t delay_ms) {
 MoveResultCode FastAccelStepper::runForward() { return _rg.startRun(true); }
 MoveResultCode FastAccelStepper::runBackward() { return _rg.startRun(false); }
 MoveResultCode FastAccelStepper::moveTo(int32_t position, bool blocking) {
-  MoveResultCode res = _rg.moveTo(position, &fas_queue[_queue_num].queue_end);
+  MoveResultCode res = _rg.moveTo(position, &_queue()->queue_end);
   if ((res == MOVE_OK) && blocking) {
     while (isRunning()) {
       noop_or_wait;
@@ -635,7 +408,7 @@ MoveResultCode FastAccelStepper::move(int32_t move, bool blocking) {
   if ((move < 0) && (_dirPin == PIN_UNDEFINED)) {
     return MOVE_ERR_NO_DIRECTION_PIN;
   }
-  MoveResultCode res = _rg.move(move, &fas_queue[_queue_num].queue_end);
+  MoveResultCode res = _rg.move(move);
   if ((res == MOVE_OK) && blocking) {
     while (isRunning()) {
       noop_or_wait;
@@ -644,7 +417,10 @@ MoveResultCode FastAccelStepper::move(int32_t move, bool blocking) {
   return res;
 }
 void FastAccelStepper::keepRunning() { _rg.setKeepRunning(); }
-void FastAccelStepper::stopMove() { _rg.initiateStop(); }
+void FastAccelStepper::stopMove() {
+  _stop_cause = (uint8_t)StepperStopCause::StopMove;
+  _rg.initiateStop();
+}
 void FastAccelStepper::applySpeedAcceleration() {
   _rg.applySpeedAcceleration();
 }
@@ -671,20 +447,30 @@ MoveResultCode FastAccelStepper::moveByAcceleration(int32_t acceleration,
   }
   return res;
 }
+// Defined here rather than inline in the header: StepperQueue is only
+// forward-declared there.
+void FastAccelStepper::resumeCommands() { _queue()->resumeCommands(); }
+bool FastAccelStepper::areCommandsSuspended() const {
+  return _queue()->areCommandsSuspended();
+}
 void FastAccelStepper::forceStop() {
-  StepperQueue* q = &fas_queue[_queue_num];
+  StepperQueue* q = _queue();
+
+  _stop_cause = (uint8_t)StepperStopCause::ForceStop;
 
   // ensure no more commands are added to the queue
-  q->ignore_commands = true;
+  q->suspendCommands();
 
   // inform ramp generator to force stop
   _rg.forceStop();
 }
 void FastAccelStepper::forceStopAndNewPosition(int32_t new_pos) {
-  StepperQueue* q = &fas_queue[_queue_num];
+  StepperQueue* q = _queue();
+
+  _stop_cause = (uint8_t)StepperStopCause::ForceStopAndNewPosition;
 
   // ensure no more commands are added to the queue
-  q->ignore_commands = true;
+  q->suspendCommands();
 
   // stop ramp generator
   _rg.stopRamp();
@@ -696,80 +482,59 @@ void FastAccelStepper::forceStopAndNewPosition(int32_t new_pos) {
   q->queue_end.pos = new_pos;
   _rg.setTargetPosition(new_pos);
 }
+StepperStopCause FastAccelStepper::takeStopCause() {
+  StepperStopCause cause = (StepperStopCause)_stop_cause;
+  _stop_cause = (uint8_t)StepperStopCause::None;
+  return cause;
+}
+bool FastAccelStepper::setEnablePinState(uint8_t pin, uint8_t active_state) {
+  if (pin == PIN_UNDEFINED) {
+    return true;
+  }
+  if (pin & PIN_EXTERNAL_FLAG) {
+    if (_engine->_externalCallForPin != NULL) {
+      return _engine->_externalCallForPin(pin, active_state) == active_state;
+    }
+    return true;
+  }
+  SET_ENABLE_PIN_STATE(_queue(), pin, active_state);
+  return true;
+}
 bool FastAccelStepper::disableOutputs() {
   if (isRunning() && _autoEnable) {
     return false;
   }
-  bool disabled = true;
-  if (_enablePinLowActive != PIN_UNDEFINED) {
-    if (_enablePinLowActive & PIN_EXTERNAL_FLAG) {
-      if (_engine->_externalCallForPin != NULL) {
-        disabled &=
-            (_engine->_externalCallForPin(_enablePinLowActive, HIGH) == HIGH);
-      }
-    } else {
-      digitalWrite(_enablePinLowActive, HIGH);
-    }
-  }
-  if (_enablePinHighActive != PIN_UNDEFINED) {
-    if (_enablePinHighActive & PIN_EXTERNAL_FLAG) {
-      if (_engine->_externalCallForPin != NULL) {
-        disabled &=
-            (_engine->_externalCallForPin(_enablePinHighActive, LOW) == LOW);
-      }
-    } else {
-      digitalWrite(_enablePinHighActive, LOW);
-    }
-  }
+  bool disabled = setEnablePinState(_enablePinLowActive, HIGH) &
+                  setEnablePinState(_enablePinHighActive, LOW);
   if (disabled) {
     _auto_disable_delay_counter = 0;
   }
   return disabled;
 }
 bool FastAccelStepper::enableOutputs() {
-  bool enabled = true;
-  if (_enablePinLowActive != PIN_UNDEFINED) {
-    if (_enablePinLowActive & PIN_EXTERNAL_FLAG) {
-      if (_engine->_externalCallForPin != NULL) {
-        enabled &=
-            (_engine->_externalCallForPin(_enablePinLowActive, LOW) == LOW);
-      }
-    } else {
-      digitalWrite(_enablePinLowActive, LOW);
-    }
-  }
-  if (_enablePinHighActive != PIN_UNDEFINED) {
-    if (_enablePinHighActive & PIN_EXTERNAL_FLAG) {
-      if (_engine->_externalCallForPin != NULL) {
-        enabled &=
-            (_engine->_externalCallForPin(_enablePinHighActive, HIGH) == HIGH);
-      }
-    } else {
-      digitalWrite(_enablePinHighActive, HIGH);
-    }
-  }
-  return enabled;
+  return setEnablePinState(_enablePinLowActive, LOW) &
+         setEnablePinState(_enablePinHighActive, HIGH);
 }
-int32_t FastAccelStepper::getPositionAfterCommandsCompleted() {
-  return fas_queue[_queue_num].queue_end.pos;
+int32_t FastAccelStepper::getPositionAfterCommandsCompleted() const {
+  return _queue()->queue_end.pos;
 }
-uint32_t FastAccelStepper::getPeriodInTicksAfterCommandsCompleted() {
+uint32_t FastAccelStepper::getPeriodInTicksAfterCommandsCompleted() const {
   if (_rg.isRampGeneratorActive()) {
     return _rg.getCurrentPeriodInTicks();
   }
   return 0;
 }
-uint32_t FastAccelStepper::getPeriodInUsAfterCommandsCompleted() {
+uint32_t FastAccelStepper::getPeriodInUsAfterCommandsCompleted() const {
   if (_rg.isRampGeneratorActive()) {
     return _rg.getCurrentPeriodInUs();
   }
   return 0;
 }
 void FastAccelStepper::getCurrentSpeedInTicks(struct actual_ticks_s* speed,
-                                              bool realtime) {
+                                              bool realtime) const {
   bool valid;
   if (realtime) {
-    valid = fas_queue[_queue_num].getActualTicksWithDirection(speed);
+    valid = _queue()->getActualTicksWithDirection(speed);
   } else {
     valid = false;
   }
@@ -781,7 +546,7 @@ void FastAccelStepper::getCurrentSpeedInTicks(struct actual_ticks_s* speed,
     }
   }
 }
-int32_t FastAccelStepper::getCurrentSpeedInUs(bool realtime) {
+int32_t FastAccelStepper::getCurrentSpeedInUs(bool realtime) const {
   struct actual_ticks_s speed;
   getCurrentSpeedInTicks(&speed, realtime);
   int32_t speed_in_us = speed.ticks / (TICKS_PER_S / 1000000);
@@ -790,7 +555,7 @@ int32_t FastAccelStepper::getCurrentSpeedInUs(bool realtime) {
   }
   return -speed_in_us;
 }
-int32_t FastAccelStepper::getCurrentSpeedInMilliHz(bool realtime) {
+int32_t FastAccelStepper::getCurrentSpeedInMilliHz(bool realtime) const {
   struct actual_ticks_s speed;
   getCurrentSpeedInTicks(&speed, realtime);
   if (speed.ticks > 0) {
@@ -802,27 +567,27 @@ int32_t FastAccelStepper::getCurrentSpeedInMilliHz(bool realtime) {
   }
   return 0;
 }
-uint16_t FastAccelStepper::getMaxSpeedInTicks() {
-  return fas_queue[_queue_num].getMaxSpeedInTicks();
+uint16_t FastAccelStepper::getMaxSpeedInTicks() const {
+  return _queue()->getMaxSpeedInTicks();
 }
-uint16_t FastAccelStepper::getMaxSpeedInUs() {
+uint16_t FastAccelStepper::getMaxSpeedInUs() const {
   uint16_t ticks = getMaxSpeedInTicks();
   uint16_t speed_in_us = ticks / (TICKS_PER_S / 1000000);
   return speed_in_us;
 }
-uint32_t FastAccelStepper::getMaxSpeedInHz() {
+uint32_t FastAccelStepper::getMaxSpeedInHz() const {
   uint16_t ticks = getMaxSpeedInTicks();
   uint32_t speed_in_hz = TICKS_PER_S / ticks;
   return speed_in_hz;
 }
-uint32_t FastAccelStepper::getMaxSpeedInMilliHz() {
+uint32_t FastAccelStepper::getMaxSpeedInMilliHz() const {
   uint16_t ticks = getMaxSpeedInTicks();
   uint32_t speed_in_milli_hz = ((uint32_t)250 * TICKS_PER_S) / ticks * 4;
   return speed_in_milli_hz;
 }
-#if SUPPORT_UNSAFE_ABS_SPEED_LIMIT_SETTING == 1
+#if defined(SUPPORT_UNSAFE_ABS_SPEED_LIMIT_SETTING)
 void FastAccelStepper::setAbsoluteSpeedLimit(uint16_t max_speed_in_ticks) {
-  fas_queue[_queue_num].setAbsoluteSpeedLimit(max_speed_in_ticks);
+  _queue()->setAbsoluteSpeedLimit(max_speed_in_ticks);
 }
 #endif
 int8_t FastAccelStepper::setSpeedInTicks(uint32_t min_step_ticks) {
@@ -859,48 +624,52 @@ int8_t FastAccelStepper::setSpeedInMilliHz(uint32_t speed_mhz) {
 void FastAccelStepper::setCurrentPosition(int32_t new_pos) {
   int32_t delta = new_pos - getCurrentPosition();
   if (delta != 0) {
-    struct queue_end_s* queue_end = &fas_queue[_queue_num].queue_end;
+    StepperQueue* q = _queue();
+#if defined(SUPPORT_RP_PICO)
+    q->pos_offset += delta;
+#endif
+    struct queue_end_s* queue_end = &q->queue_end;
     fasDisableInterrupts();
     queue_end->pos = queue_end->pos + delta;
-    _rg.advanceTargetPosition(delta, queue_end);
+    _rg.advanceTargetPosition(delta);
     fasEnableInterrupts();
   }
 }
 void FastAccelStepper::setPositionAfterCommandsCompleted(int32_t new_pos) {
-  struct queue_end_s* queue_end = &fas_queue[_queue_num].queue_end;
+  StepperQueue* q = _queue();
+  struct queue_end_s* queue_end = &q->queue_end;
   fasDisableInterrupts();
-  int32_t delta = new_pos - fas_queue[_queue_num].queue_end.pos;
+  int32_t delta = new_pos - q->queue_end.pos;
   queue_end->pos = new_pos;
   if (delta != 0) {
-    _rg.advanceTargetPosition(delta, queue_end);
+#if defined(SUPPORT_RP_PICO)
+    q->pos_offset += delta;
+#endif
+    _rg.advanceTargetPosition(delta);
   }
   fasEnableInterrupts();
 }
-uint8_t FastAccelStepper::queueEntries() {
-  return fas_queue[_queue_num].queueEntries();
+uint8_t FastAccelStepper::queueEntries() const {
+  return _queue()->queueEntries();
 }
-uint32_t FastAccelStepper::ticksInQueue() {
-  return fas_queue[_queue_num].ticksInQueue();
+uint32_t FastAccelStepper::ticksInQueue() const {
+  return _queue()->ticksInQueue();
 }
-bool FastAccelStepper::hasTicksInQueue(uint32_t min_ticks) {
-  return fas_queue[_queue_num].hasTicksInQueue(min_ticks);
+bool FastAccelStepper::hasTicksInQueue(uint32_t min_ticks) const {
+  return _queue()->hasTicksInQueue(min_ticks);
 }
-bool FastAccelStepper::isQueueFull() {
-  return fas_queue[_queue_num].isQueueFull();
-}
-bool FastAccelStepper::isQueueEmpty() {
-  return fas_queue[_queue_num].isQueueEmpty();
-}
-bool FastAccelStepper::isQueueRunning() {
-  return fas_queue[_queue_num].isRunning();
-}
-bool FastAccelStepper::isRunning() {
-  StepperQueue* q = &fas_queue[_queue_num];
+bool FastAccelStepper::isQueueFull() const { return _queue()->isQueueFull(); }
+bool FastAccelStepper::isQueueEmpty() const { return _queue()->isQueueEmpty(); }
+bool FastAccelStepper::isQueueRunning() const { return _queue()->isRunning(); }
+bool FastAccelStepper::isRunning() const {
+  StepperQueue* q = _queue();
   return q->isRunning() || _rg.isRampGeneratorActive() || !isQueueEmpty();
 }
 void FastAccelStepper::performOneStep(bool count_up, bool blocking) {
   if (!isRunning()) {
     if (count_up || (_dirPin != PIN_UNDEFINED)) {
+      StepperQueue* q = _queue();
+      q->resumeCommands();
       struct stepper_command_s cmd = {
           .ticks = MIN_CMD_TICKS, .steps = 1, .count_up = count_up};
       addQueueEntry(&cmd);
@@ -917,161 +686,32 @@ void FastAccelStepper::forwardStep(bool blocking) {
 void FastAccelStepper::backwardStep(bool blocking) {
   performOneStep(false, blocking);
 }
-int32_t FastAccelStepper::getCurrentPosition() {
-  return fas_queue[_queue_num].getCurrentPosition();
+int32_t FastAccelStepper::getCurrentPosition() const {
+  return _queue()->getCurrentPosition();
 }
-MoveTimedResultCode FastAccelStepper::moveTimed(int16_t steps,
-                                                uint32_t duration,
-                                                uint32_t* actual_duration,
-                                                bool start) {
-  MoveTimedResultCode ret_ok =
-      isQueueEmpty() ? MOVE_TIMED_EMPTY : MOVE_TIMED_OK;
-  if ((steps == 0) && (duration == 0)) {
-    if (start) {
-      addQueueEntry(NULL, true);  // start the queue
-    }
-    return ret_ok;
-  }
-  uint8_t freeEntries = QUEUE_LEN - queueEntries();
-  if (actual_duration) {
-    *actual_duration = 0;
-  }
-  struct stepper_command_s cmd = {.ticks = 0, .steps = 0, .count_up = true};
-  if (steps == 0) {
-    if ((duration >> 16) >= QUEUE_LEN) {
-      return MOVE_TIMED_TOO_LARGE_ERROR;
-    }
-    if ((duration >> 16) >= freeEntries) {
-      return MOVE_TIMED_BUSY;
-    }
-    // Should fit
-    while (duration > 0) {
-      if (duration <= 65535) {
-        // done using one command
-        cmd.ticks = duration;
-      } else if (duration >= 131072) {
-        // need more than one command
-        cmd.ticks = 65535;
-      } else {
-        // just use half of the duration now, and the other half in the next
-        // cmd.
-        cmd.ticks = duration >> 1;
-      }
-      AqeResultCode ret = addQueueEntry(&cmd, start);
-      if (ret != AQE_OK) {
-        // unexpected
-        return tmrFrom(ret);
-      }
-      if (actual_duration) {
-        *actual_duration += cmd.ticks;
-      }
-      duration -= cmd.ticks;
-    }
-    return ret_ok;
-  }
+void FastAccelStepper::detachFromPin() { _queue()->disconnect(); }
+void FastAccelStepper::reAttachToPin() { _queue()->connect(); }
 
-  // let's evaluate the direction
-  if (steps < 0) {
-    cmd.count_up = false;
-    steps = -steps;
-  }
-
-  // There are steps to execute
-  // Let's first calculate the step rate
-  uint32_t rate = duration;
-  rate /= steps;
-  if (rate > 65535) {
-    // we need pauses, so only few steps can be executed
-    uint16_t cmds_per_step = (rate >> 16) + 1;  // bit too small
-    if (cmds_per_step >= QUEUE_LEN) {
-      return MOVE_TIMED_TOO_LARGE_ERROR;
-    }
-    if (steps >= QUEUE_LEN) {
-      return MOVE_TIMED_TOO_LARGE_ERROR;
-    }
-    uint8_t cmds = steps * cmds_per_step;
-    if (cmds >= QUEUE_LEN) {
-      return MOVE_TIMED_TOO_LARGE_ERROR;
-    }
-    if (cmds > freeEntries) {
-      return MOVE_TIMED_BUSY;
-    }
-    // Should fit into the queue.
-    for (uint8_t s = 0; s < steps; s++) {
-      uint32_t this_duration = rate;
-      cmd.steps = 1;
-      while (this_duration) {
-        if (this_duration > 131072) {
-          cmd.ticks = 65535;
-        } else if (this_duration > 65535) {
-          cmd.ticks = this_duration / 2;
-        } else {
-          cmd.ticks = this_duration;
-        }
-        this_duration -= cmd.ticks;
-
-        AqeResultCode ret = addQueueEntry(&cmd, start);
-        if (ret != AQE_OK) {
-          // unexpected
-          return tmrFrom(ret);
-        }
-        if (actual_duration) {
-          *actual_duration += cmd.ticks;
-        }
-        // remaining are pauses
-        cmd.steps = 0;
-      }
-    }
-    return ret_ok;
-  }
-  // Now we need to run steps at "high" speed.
-  if (steps > QUEUE_LEN * 255) {
-    return MOVE_TIMED_TOO_LARGE_ERROR;
-  }
-  if (steps > freeEntries * 255) {
-    return MOVE_TIMED_BUSY;
-  }
-  // The steps should fit in
-  cmd.ticks = rate;
-  uint32_t expected_duration = rate;
-  expected_duration *= steps;
-  // duration must be larger than expected_duration
-  int16_t missing = duration - expected_duration;
-#ifdef TEST
-  assert(duration >= expected_duration);
-#endif
-  while (steps > 0) {
-    if (steps > 510) {
-      cmd.steps = 255;
-    } else if (steps > 255) {
-      cmd.steps = steps / 2;
-    } else {
-      cmd.steps = steps;
-    }
-    if (steps <= missing) {
-      // run the remaining steps bit slower to adjust for missing ticks
-      cmd.ticks++;
-      missing = 0;  // only increase once
-#ifdef TEST
-      printf("increase ticks for %d steps\n", steps);
-#endif
-    }
-    AqeResultCode ret = addQueueEntry(&cmd, start);
-    if (ret != AQE_OK) {
-      // unexpected
-      return tmrFrom(ret);
-    }
-    // Why has this been calculated before and actual_duration is used ?
-    // uint32_t cmd_duration = cmd.ticks;
-    // cmd_duration *= cmd.steps;
-    if (actual_duration) {
-      uint32_t d = cmd.ticks;
-      d *= steps;
-      *actual_duration += d;
-    }
-    steps -= cmd.steps;
-  }
-  return ret_ok;
+#if defined(SUPPORT_SELECT_DRIVER_TYPE)
+FasDriver FastAccelStepper::driverType() const {
+  return _queue()->_driver_type;
 }
-void FastAccelStepper::detachFromPin() { fas_queue[_queue_num].disconnect(); }
-void FastAccelStepper::reAttachToPin() { fas_queue[_queue_num].connect(); }
+const char* FastAccelStepper::driverTypeString() const {
+  switch (_queue()->_driver_type) {
+#if defined(SUPPORT_ESP32_MCPWM_PCNT)
+    case FasDriver::MCPWM_PCNT:
+      return "MCPWM_PCNT";
+#endif
+    case FasDriver::RMT:
+      return "RMT";
+#if defined(SUPPORT_ESP32_I2S)
+    case FasDriver::I2S_DIRECT:
+      return "I2S_DIRECT";
+    case FasDriver::I2S_MUX:
+      return "I2S_MUX";
+#endif
+    default:
+      return "UNSPECIFIED";
+  }
+}
+#endif

@@ -91,13 +91,13 @@ void setup() {
 
 }
 
-#define OFFSET_A -600
+#define OFFSET_A -800
 #define OFFSET_B 0
 #define OFFSET_C 0
-#define OFFSET_D 620
+#define OFFSET_D 950
 #define OFFSET_E 0
 
-#define TIME_OFFSET 1600
+#define TIME_OFFSET 3200
 
 long CORSA = 600;
 
@@ -149,10 +149,10 @@ void check_input() {
       delay(100);
 
       mot_A->setSpeedInHz(MOT_SPEED/6);  
-      mot_A->setAcceleration(MOT_ACC/10);  
+      mot_A->setAcceleration(MOT_ACC/8);  
       mot_A->applySpeedAcceleration();
       mot_D->setSpeedInHz(MOT_SPEED/6);  
-      mot_D->setAcceleration(MOT_ACC/10);  
+      mot_D->setAcceleration(MOT_ACC/8);  
       mot_D->applySpeedAcceleration();
 
       mot_A->move(OFFSET_A);
@@ -204,10 +204,10 @@ void check_input() {
       while (mot_D->isRunning() || mot_A->isRunning() || mot_E->isRunning() || mot_B->isRunning() || mot_C->isRunning()){};
 
       mot_A->setSpeedInHz(MOT_SPEED/6);  
-      mot_A->setAcceleration(MOT_ACC/10);  
+      mot_A->setAcceleration(MOT_ACC/8);  
       mot_A->applySpeedAcceleration();
       mot_D->setSpeedInHz(MOT_SPEED/6);  
-      mot_D->setAcceleration(MOT_ACC/10);  
+      mot_D->setAcceleration(MOT_ACC/8);  
       mot_D->applySpeedAcceleration();
 
       mot_A->moveTo(OFFSET_A*-1);

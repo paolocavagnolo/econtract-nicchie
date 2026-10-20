@@ -49,7 +49,7 @@
 #define MAN_ACC   3000     // 10000
 
 #define TARGET_POS 103000
-#define BOLLE_POS   69000
+#define BOLLE_POS   50000
 
 #define ZERO_OFFSET 1000
 

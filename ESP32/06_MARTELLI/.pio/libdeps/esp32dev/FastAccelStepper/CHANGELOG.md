@@ -1,3 +1,191 @@
+2.0.0:
+- Breaking: `FasNAxis::clearFault()` and `getDirChangeBeforePauseCount()` removed; `addQueueEntry()` now returns `AQE_ERROR_COMMANDS_SUSPENDED` for a refused command instead of `AQE_OK` (see the individual entries below)
+- pico: `addQueueEntry(cmd, start=false)` no longer starts an idle queue (the PIO feeder was started unconditionally), so "fill the queue, then start it" — `QFILL`, `FasNAxis` → `synchronizedStart()` — works on RP2040/RP2350
+- pico: `getCurrentStepCount()` no longer reads the PIO RX FIFO before testing it, and no longer treats a stale sample as current: the PIO's non-blocking position push leaves old samples in the FIFO once it fills, so `getCurrentPosition()` returned 0 during a run (measured `POS 0` in 15 of 40 RP2350 SR_30 aborts against ~1270 steps on the wire). A running read now discards the stale samples and waits for a current push; a stopped queue returns `queue_end.pos`, since `forceStop()` restarts the SM and clears the position in the shift register
+- naxes: FasNAxis::clearFault() removed from API — it could only resume a plan whose position model was stale; use syncFromSteppers()
+- naxes: fix a re-sync undone by the next pump(): clearing the fault left the stop cause pending
+- addQueueEntry() returns AQE_ERROR_COMMANDS_SUSPENDED instead of AQE_OK for a command it refused, so a caller can tell queued from refused; resumeCommands() rearms
+- esp32: Fix the MCPWM/PCNT driver on ESP-IDF 5/6 running away with more than one stepper: every stepper after the first emitted continuously and never stopped, so a second stepper produced unbounded motion. All six queues now work
+- getDirChangeBeforePauseCount() removed from API
+- esp32: Fix the RMT direction change on ESP-IDF 5/6 landing before the previous segment finished stepping: trailing steps of the old segment went out in the new direction, or the first segment of a move went out backwards
+- esp32: Fix a NULL config in the RMT synchronized-start path causing every first `synchronizedStart()` on ESP32 classic to silently fail
+
+1.4.0:
+- naxes: experimental timed trajectory (EXPERIMENTAL): header-only FasTimed, separate from FasNAxis. A waypoint is per-axis delta steps in [-128, 128] and one shared duration in [MIN_CMD_TICKS, 65535] ticks. One call is one rate; a rate the motors cannot reach is TimingNotAchievable
+- naxes: experimental multi-axis planner (EXPERIMENTAL): header-only FasNAxis driving N time-synchronized FastAccelStepper queues from one polyline, Linear/Overshoot lookahead with no float/int division in the hot path, dwells, and external stop-cause hook with planner abort
+- FastAccelStepperEngine::synchronizedStart(FastAccelStepper** const, uint8_t): start several steppers' queues in one engine operation, so their first steps share one start event
+- avr: AVR synchronized start: two-phase arm + trigger — arm all channels with one shared compare value, then clear all flags and enable all compare interrupts in one critical section (328P: two steppers A/B directly; 2560/32U4: bitmask for A/B/C)
+- esp32: experimental RMT synchronized start (EXPERIMENTAL): IDF5/6 native release via `rmt_new_sync_manager()` + `rmt_sync_reset()` — all RMT channels on one peripheral trigger simultaneously
+- esp32: Fix a sporadic extra step on the ESP-IDF 5/6 RMT driver. IDF5/6 encodes the queue directly instead of filling fixed RMT halves. 20× seq_02 and 20× seq_03 passed on IDF5 RMT
+- naxes: FasNAxis takes the engine in its constructor and uses the engine's synchronized start for its kick-off
+
+1.3.4:
+- Teensy 4.0/4.1 support (EXPERIMENTAL): new pd_teensy backend, up to 16 steppers via the i.MX RT1062 QuadTimer modules
+- getDirChangeBeforeTicks() / getDirChangeBeforePauseCount() / getDirChangeAfterTicks(): planner-facing DIR pause budget (driver drain + user dir_change_delay from setDirectionPin())
+
+1.3.3:
+- moveTimed(steps, duration, actual_duration, start=true, prepare_revert=false): a pause (steps=0) uses last queued direction XOR prepare_revert. Default false keeps DIR; true issues the pause in the opposite direction.
+
+1.3.2:
+- moveTimed(): on DirChangePauseInjected / DirPin2msPauseAdded, *actual_duration reports the injected pause ticks (previously left at 0)
+
+1.3.1:
+- esp32: attachToPulseCounter() accepts invert_step_pulse to count inverted step pulses
+- StepperDemo: `pi<n>[,l,h]` attaches the pulse counter with inverted step pulse
+- esp32: IDF4 MCPWM/PCNT inserts one MIN_CMD_TICKS pause (old DIR) before a direction change so DIR is not toggled while STEP is still high (#370)
+- esp32_hw_based: seq_08 inverted pulse-counter attach (`pi7`) on every motor/driver
+
+1.3.0:
+- esp32: ESP-IDF 6.1 now supports the MCPWM/PCNT and I2S drivers
+- esp32: Enable attachToPulseCounter() on ESP-IDF 6
+- esp32: attachToPulseCounter() on ESP-IDF 5 no longer resets step/dir GPIO
+- esp32: IDF 5 MCPWM/PCNT fix time base mismatch
+- esp32: IDF 5 MCPWM/PCNT pauses briefly before a direction change so the direction pin settles before the next step (IDF 4 already does this)
+- esp32: Fix a spurious step at the start of a move on IDF 5/6 MCPWM/PCNT (#370)
+- esp32: Fix a wrong step count after a direction-change pause on MCPWM/PCNT, where a following move reused the previous move's step count
+- The direction-pin change delay (third parameter of setDirectionPin()) is now applied consistently on all platforms (AVR, SAM, SAMD, Pico and ESP32 RMT/I2S/MCPWM)
+- addQueueEntry() may now return AQE_DIR_CHANGE_PAUSE_INJECTED when a direction-change pause is inserted instead of the command; the caller must retry
+
+1.2.8:
+- Fix moveTimed(): reserve 2 queue slots for direction-change pause commands so
+  a move is only admitted (and stays atomic) when it plus the direction pauses
+  fits into the queue, instead of silently dropping steps (#370)
+- Document the capacity contract: a move may generate at most QUEUE_LEN - 2
+  queue commands; for streaming keep well below QUEUE_LEN/2 and split large
+  moves on the application side (#370)
+- samd51: New platform port (Microchip SAMD51, Arduino SAMD51 core) (#317)
+  - TCC PWM pulse driver: one TCC instance per stepper, hardware-timed pulse edges via buffered `PERBUF`/`CCBUF` registers
+  - 16 MHz tick timebase from DFLL48M divided by 3 on a dedicated GCLK generator
+  - ~4 ms ramp tick driven by a plain TC instance (TC3 default, compile-time override)
+  - Workaround for silicon erratum DS80000748 (SYNCBUSY/buffer-latch race on abort)
+  - Up to 3 steppers on SAMD51G, up to 5 on SAMD51J/N/P; SAMD21 not supported
+  - ADR 0001/0002 document the port design decisions
+
+1.2.7:
+- esp32_idf: Fix StepperDemo.cpp build for ESP-IDF 6 (uses `esp_task_wdt_init(const esp_task_wdt_config_t*)` API via `ESP_IDF_VERSION_MAJOR >= 5` guard)
+- ci: Switch IDF build flags from `-Wno-error=attributes` to `-Wno-attributes` to silence `'noreturn' attribute does not apply to types` warning emitted by ESP-IDF 6 `hal/assert.h`
+
+1.2.6:
+- esp32: Fix ESP-IDF 6 RMT header include (#366)
+
+1.2.5:
+- ESP32: Enable MCPWM/PCNT driver for IDF 5.3+ on ESP32-S3, ESP32-C6, ESP32-H2
+- Add driverType()/driverTypeString() API to query ESP32 driver at runtime
+- StepperDemo: guard against selecting unconnected stepper motors
+- ESP32: Convert hardware test scripts from grabserial to Python (single serial session)
+- Fix moveTimed() using wrong variable in actual_duration calculation
+- Update documentation for IDF 5.3+ MCPWM/PCNT support
+
+1.2.4:
+- Rework of the complete init system across all platforms:
+  - `StepperQueue::init()` and `FastAccelStepper::init()` return type changed from `bool` to `void`
+  - `_initVars()` moved from `init()` to `tryAllocateQueue()` for all platform drivers
+  - Static queue arrays initialized in engine `init()` via `_initVars()`
+  - All member initialization consolidated into `_pd_initVars()` and `_base_initVars()`
+  - `__builtin_memset` used for zeroing structures instead of manual field-by-field init
+  - `_dirPinPort`/`_dirPinMask` moved from base class to AVR and SAM drivers
+  - `max_speed_in_ticks` default moved from in-class initializer to `_pd_initVars()`
+  - ESP32: remove unused static `initVars()` method
+- avr: fix init() along with SAM
+- sam: fix init() regression from init system rework
+- pico: fix init issue and initVars()
+- esp32: guard `FasDriver` enum members against zero queue counts
+- avr: store result code strings in PROGMEM via `FAS_PSTR()` macro to save RAM
+- optimize `queue_end_s`: use bitfields for `count_up` and `dir`
+- fix `log2_pow_div_3()` for negative input values
+- simplify `ramp_rw_s::init()`/`stopRamp()` and `ramp_parameters_s::init()`
+- various code optimizations and simavr timing expectation adjustments
+
+1.2.3:
+- esp32: Fix null result from `stepperConnectToPin()` due to `_step_pin` not initialized to `PIN_UNDEFINED` (#352)
+
+1.2.2:
+- samx3-due: Fix null result from `tryAllocateQueue()` (#351)
+
+1.2.1:
+- pico: Fix crash in stepperConnectToPin() due to null pointer dereference in PIO resource claiming (#350)
+
+1.2.0:
+- esp32: Fix I2S MUX slot-to-bit mapping to use direct (non-mirrored) assignment (#338)
+
+1.1.0:
+- Refactor external direction pin handling:
+  - Remove `repeat_entry` mechanism from queue (queue no longer knows about external pins)
+  - Remove `externalDirPinChangeCompletedIfNeeded()` function
+  - Remove `isOnRepeatingEntry()`, `clearRepeatingFlag()`, `dirPinState()` queue methods
+  - Add `ExtDirPendingState` enum to track pending external dir pin changes
+  - External dir pin changes now handled entirely in `addQueueEntry()`
+  - Return `AQE_DIR_PIN_2MS_PAUSE_ADDED` for external pin waits (vs `AQE_DIR_PIN_IS_BUSY` for shared pins)
+  - Simplified engine task loop - just calls `fill_queue()` directly
+- Add `hasStepsInQueue()` method to check if queue contains entries with steps
+
+1.0.0:
+- add memory report script
+- rename old pmf/PMF to log2/LOG2 representation and define type `log2_value_t`
+- add timing plot `to extras/tests/simavr_based`
+- major refactoring of the code
+- esp32: new platformio project in extras/Esp32StepperDemo for esp32 stepper configuration
+- esp32-idf5: implement I2S-module in DIRECT mode to drive one stepper up to 200 kHz (1-3 modules depending on esp32 variant)
+- esp32-idf5: use I2S-module in MUX mode (16bit/stereo) to drive up to 32 steppers (or less if direction/enable on mux) (#338)
+- Add const qualifier to function declaration if appropriate
+
+0.34.0:
+- Major internal refactoring: reorganize code into subdirectories
+  - `fas_queue/` - queue implementation
+  - `fas_ramp/` - ramp calculation
+  - `log2/` - Log2Representation
+  - `pd_avr/`, `pd_esp32/`, `pd_pico/`, `pd_sam/` - pulse drivers (pd = pulse driver, platform driver fits too)
+- Remove circular dependencies between headers
+- No API changes, fully backwards compatible
+
+0.33.14:
+- #348: Fix for unexpected motor stop at slow speed
+
+0.33.13:
+- pico: Fill pio-TX-queue by interrupt and not by a RTOS-Task (#345)
+- #347: fix ramp control to avoid overflow in multiplication
+- fix: make `forward/backwardStep()` operational right after `forceStop()`
+
+0.33.12:
+- esp32: change minimum period to 4 from 2 in order to fix #306
+- esp32: fix error in `esp32xx_rmt`
+- StepperDemo: modify for esp32C6 using espidf
+- `test_18`: add command line switch for RMT symbol dumping
+
+0.33.11:
+- pico: introduce setDirPinState() for #343 avoiding gpio writes to direction pin altogether.
+
+0.33.10:
+- pico: fix issue as reported in #343. Apparently digitalRead()-library implementation has changed.
+
+0.33.9:
+- pico: stabilize stepper frequency by time compensation and fix calculation
+- pico: retry claiming of new state machine on failure
+
+0.33.8:
+- esp32: Avoid calling `rmt_disable()` on an already disabled channel in `forceStopAndNewPosition()` (#337)
+
+0.33.7:
+- esp32: Fix overwriting of max speed with 1kstep/s. esp32 issue reported in #335
+
+0.33.6:
+- pico2: support for PICO 2350 SDK (#334)
+
+0.33.5:
+- pico: Fix pio/sm allocation scheme (#331)
+
+0.33.4:
+- pico: Fix direction pin handling (#329)
+
+0.33.3:
+- pico: Improve `getCurrentPosition()` and make `setCurrentPosition()` functional
+
+0.33.2:
+- pico: Update forceStop & getCurrentPosition to use `stepper_make_fifo_entry` instead of hardcoded shift (#327)
+
+0.33.1:
+- esp32 rmt: Fix freeze on esp32c3 (#325)
+
 0.33.0:
 - rename RampConstAcceleration to RampControl
 - rename PoorManFloat to Log2Representation

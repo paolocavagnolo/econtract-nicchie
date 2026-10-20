@@ -479,11 +479,19 @@ void goToHome() {
   
   M1->runBackward();
 
+  uint32_t timeout = millis();
+
   while (!exit_flag) {
 
-    if (!digitalRead(ADIO6)) {
+    if ((millis() - timeout) > 30000) {
       M1->forceStop();
-      delay(100);
+      while(M1->isRunning());
+      exit_flag = true;
+    }
+
+    if (digitalRead(ADIO6)) {
+      M1->forceStop();
+      while(M1->isRunning());
       M1->move(ZERO_OFFSET);
       while (M1->isRunning()) {}
       exit_flag = true;

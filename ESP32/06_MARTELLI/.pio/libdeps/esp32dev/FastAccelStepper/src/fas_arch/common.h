@@ -45,9 +45,9 @@ struct actual_ticks_s {
 
 // I doubt, volatile is needed.
 struct queue_end_s {
-  volatile int32_t pos;  // in steps
-  volatile bool count_up;
-  volatile bool dir;
+  volatile int32_t pos;
+  bool count_up : 1;
+  bool dir : 1;
 };
 
 // use own min/max/abs function, because the lib versions are messed up
@@ -63,26 +63,50 @@ struct queue_end_s {
 #if defined(TEST)
 // TEST "architecture" is in use with pc_based testing.
 #include "fas_arch/test_pc.h"
+#include "pd_test/pd_config.h"
 
 #elif defined(ARDUINO_ARCH_ESP32)
 // ESP32 derivates using arduino core
 #include "fas_arch/arduino_esp32.h"
+#include "pd_esp32/pd_config.h"
 
 #elif defined(ESP_PLATFORM)
 // ESP32 derivates using espidf
 #include "fas_arch/espidf_esp32.h"
+#include "pd_esp32/pd_config.h"
+
+#elif defined(__IMXRT1062__)
+// Teensy 4.0/4.1, via Teensyduino. EXPERIMENTAL - see pd_teensy/pd_config.h.
+#include "fas_arch/arduino_teensy.h"
+#include "pd_teensy/pd_config.h"
 
 #elif defined(ARDUINO_ARCH_SAM)
 // SAM-architecture
 #include "fas_arch/arduino_sam.h"
+#include "pd_sam/pd_config.h"
+
+#elif defined(ARDUINO_ARCH_SAMD)
+// SAMD-architecture (Microchip SAMD51 only)
+#if defined(__SAMD51__)
+#include "fas_arch/arduino_samd.h"
+#include "pd_samd/pd_config.h"
+#else
+#error "Only SAMD51 is supported on the SAMD architecture (no SAMD21 yet)"
+#endif
 
 #elif defined(ARDUINO_ARCH_AVR)
 // AVR family
 #include "fas_arch/arduino_avr.h"
+#include "pd_avr/pd_config.h"
+
+#elif defined(PICO_SDK_RP2350)
+#include "fas_arch/pico_sdk_rp_pico.h"
+#include "pd_pico/pd_config.h"
 
 #elif defined(PICO_RP2040) || defined(PICO_RP2350)
 // Raspberry Pico and Pico 2
 #include "fas_arch/arduino_rp_pico.h"
+#include "pd_pico/pd_config.h"
 
 #else
 #error "Unsupported devices"
@@ -96,10 +120,6 @@ struct queue_end_s {
     digitalWrite(pin, (value)); \
     pinMode(pin, OUTPUT);       \
   }
-#endif
-
-#if defined(SUPPORT_SELECT_DRIVER_TYPE)
-enum class FasDriver : uint8_t { MCPWM_PCNT = 0, RMT = 1, DONT_CARE = 255 };
 #endif
 
 // disable inject_fill_interrupt() for all real devices. Only defined in TEST

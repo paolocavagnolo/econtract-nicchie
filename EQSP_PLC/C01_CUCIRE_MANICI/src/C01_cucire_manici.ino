@@ -33,11 +33,11 @@
 #define M_CUCIRE_SPEED  1000
 #define M_CUCIRE_ACC    1000
 
-#define M_MANICI_SPEED  25000
-#define M_MANICI_ACC    25000
+#define M_MANICI_SPEED  20000
+#define M_MANICI_ACC    20000
 
-#define CORSA_MANICI    125000
-#define ZERO_OFFSET_MANICI 250
+#define CORSA_MANICI    100000
+#define ZERO_OFFSET_MANICI 5000
 
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
@@ -259,7 +259,6 @@ void logica_cucire() {
 void logica_manici() {
 
   if (digitalRead(ADIO4)) {
-
     if (prima_volta_manici) {
       Serial.println("DENTRO");
       prima_volta_manici = false;
@@ -315,7 +314,7 @@ void goToHome_manici() {
     }
   };
   M_MANICI->forceStop();
-  delay(200);
+  while(M_MANICI->isRunning());
   M_MANICI->move(ZERO_OFFSET_MANICI);
   while (M_MANICI->isRunning()){};
   M_MANICI->setCurrentPosition(0);
