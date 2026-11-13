@@ -41,6 +41,26 @@
 #define SCL_PIN 34
 
 #include "FastAccelStepper.h"
+#include <Preferences.h>
+#include <PaginaWebNicchie.h>   // WiFi proprio + pagina comandi (firmware/lib_comune)
+#include <JogWebFAS.h>
+
+// ---- NOMI DEGLI INGRESSI/USCITE ----
+#define PIN_SEL_AUTO_G  ADIO1   // selettore galvanico su AUTO
+#define PIN_SEL_MAN_G   ADIO2   // selettore galvanico su MANUALE
+#define PIN_BTN_FWD     ADIO4   // pulsante avanti (solo MAN)
+#define PIN_BTN_BWD     ADIO5   // pulsante indietro (solo MAN)
+#define PIN_SEL_AUTO_V  ADIO7   // selettore vento su AUTO
+#define PIN_SEL_MAN_V   ADIO8   // selettore vento su MANUALE
+#define PIN_FC_HOME     DIO9    // finecorsa zero motore galvanico
+#define PIN_STEP        DIO10
+#define PIN_DIR         DIO11
+#define PIN_ENABLE      DIO12
+#define PIN_BOLLE       DIO13   // uscita bolle
+
+// ---- SICUREZZA (solo galvanico: il vento non ha finecorsa) ----
+#define TIMEOUT_HOME_MS        60000UL  // ms: tempo massimo per trovare il finecorsa
+#define STABILITA_SELETTORE_MS 200UL    // ms
 
 #define SLOW_SPEED  8000  // 8000
 #define SLOW_ACC    6000  // 6000
@@ -53,6 +73,12 @@
 
 #define ZERO_OFFSET 1000
 
+// ---- PAGINA WEB ----
+#define NOME_RETE   "03_GALVANICO_VENTO"  // nome della rete WiFi della scheda
+#define JOG_LENTO   (MAN_SPEED / 2)       // passi/s: jog da pagina "Lento"
+#define JOG_MEDIO   MAN_SPEED             // passi/s: come i pulsanti del quadro
+#define JOG_VELOCE  SLOW_SPEED            // passi/s: massimo da pagina (velocita' del ciclo)
+
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *M1 = NULL;
 
@@ -60,95 +86,6 @@ uint8_t STATE_G = 0; // 0 REMOTE - 1 AUTO - 2 MAN
 uint8_t STATE_V = 0; // 0 REMOTE - 1 AUTO - 2 MAN
 
 int opened_counter = 0;
-
-void setup() {
-
-  delay(1000);
-
-  // DEBUG
-  Serial.begin(115200);
-  delay(100);
-
-  // LED OFF
-  pinMode(37, INPUT);
-
-  // PANEL INPUT
-  pinMode(ADIO1, INPUT);  // AUTO GALV
-  pinMode(ADIO2, INPUT);  // MAN GALV
-  
-  pinMode(ADIO4, INPUT);  // FWD
-  pinMode(ADIO5, INPUT);  // BWD
-
-  pinMode(ADIO7, INPUT);  // AUTO VENTO
-  pinMode(ADIO8, INPUT);  // MAN VENTO
-  pinMode(DIO9, INPUT);  // FINECORSA MOT GALV
-
-  // RELAY OUTPUT
-  pinMode(DIO13, OUTPUT);
-
-  // VENTO OUTPUT
-  pinMode(DIO14, OUTPUT);
-  pinMode(DIO15, OUTPUT);
-  pinMode(DIO16, OUTPUT);
-
-  // DRIVER OUTPUT
-  pinMode(DIO12, OUTPUT);
-  //disableMotor();
-
-  engine.init();
-
-  M1 = engine.stepperConnectToPin(DIO10);
-
-  if (M1) {
-      M1->setDirectionPin(DIO11, false);  
-      M1->setSpeedInHz(SLOW_SPEED);  
-      M1->setAcceleration(SLOW_ACC);   
-  }  
-
-  // BUZZER 
-  ledcSetup(0, 1000, 8);
-  ledcAttachPin(BUZZ, 0);
-
-  delay(1000);
-
-  // INITIAL STATE
-  if (digitalRead(ADIO2)) {
-    STATE_G = 2;
-  } else {
-    if (digitalRead(ADIO1)) {
-      STATE_G = 1;
-    } else {
-      STATE_G = 0;
-    }
-  }
-
-  if (digitalRead(ADIO8)) {
-    STATE_V = 2;
-  } else {
-    if (digitalRead(ADIO7)) {
-      STATE_V = 1;
-    } else {
-      STATE_V = 0;
-    }
-  }
-
-  // DOUBLE BEEP FOR SETUP END
-  ledcWriteTone(0, 1000);
-  delay(50);
-  ledcWriteTone(0, 0);
-  delay(175);
-  ledcWriteTone(0, 1000);
-  delay(50);
-  ledcWriteTone(0, 0);
-
-  delay(1000);
-  enableMotor();
-  delay(300);
-  goToHome();
-  delay(300);
-  disableMotor();
-
-}
 
 bool HOMED = false;
 
@@ -183,6 +120,116 @@ bool P = true;
 bool E = false;
 unsigned long T = 0;
 
+// Blocco di sicurezza (salvato in memoria permanente)
+Preferences sicurezza;
+bool BLOCCO = false;
+
+void goToHome();
+void attivaBlocco();
+void inizializzaSicurezza();
+void enableMotor();
+void disableMotor();
+void bolleOff();
+bool leggiManG();
+bool leggiAvvioG();
+bool leggiAvvioV();
+void configuraPaginaWeb();
+void aggiornaPaginaWeb();
+
+void setup() {
+
+  delay(1000);
+
+  // DEBUG
+  Serial.begin(115200);
+  delay(100);
+
+  // LED OFF
+  pinMode(LED_BLUE, INPUT);
+
+  // PANEL INPUT
+  pinMode(PIN_SEL_AUTO_G, INPUT);  // AUTO GALV
+  pinMode(PIN_SEL_MAN_G, INPUT);  // MAN GALV
+  
+  pinMode(PIN_BTN_FWD, INPUT);  // FWD
+  pinMode(PIN_BTN_BWD, INPUT);  // BWD
+
+  pinMode(PIN_SEL_AUTO_V, INPUT);  // AUTO VENTO
+  pinMode(PIN_SEL_MAN_V, INPUT);  // MAN VENTO
+  pinMode(PIN_FC_HOME, INPUT);  // FINECORSA MOT GALV
+
+  // RELAY OUTPUT
+  pinMode(PIN_BOLLE, OUTPUT);
+
+  // VENTO OUTPUT
+  pinMode(DIO14, OUTPUT);
+  pinMode(DIO15, OUTPUT);
+  pinMode(DIO16, OUTPUT);
+
+  // DRIVER OUTPUT
+  pinMode(PIN_ENABLE, OUTPUT);
+  //disableMotor();
+
+  engine.init();
+
+  M1 = engine.stepperConnectToPin(PIN_STEP);
+
+  if (M1) {
+      M1->setDirectionPin(PIN_DIR, false);  
+      M1->setSpeedInHz(SLOW_SPEED);  
+      M1->setAcceleration(SLOW_ACC);   
+  }  
+
+  // BUZZER 
+  ledcSetup(0, 1000, 8);
+  ledcAttachPin(BUZZ, 0);
+
+  delay(1000);
+
+  inizializzaSicurezza();
+
+  // INITIAL STATE
+  if (digitalRead(PIN_SEL_MAN_G)) {
+    STATE_G = 2;
+  } else {
+    if (digitalRead(PIN_SEL_AUTO_G)) {
+      STATE_G = 1;
+    } else {
+      STATE_G = 0;
+    }
+  }
+
+  if (digitalRead(PIN_SEL_MAN_V)) {
+    STATE_V = 2;
+  } else {
+    if (digitalRead(PIN_SEL_AUTO_V)) {
+      STATE_V = 1;
+    } else {
+      STATE_V = 0;
+    }
+  }
+
+  configuraPaginaWeb();   // prima dell'azzeramento: la pagina risponde gia'
+
+  // DOUBLE BEEP FOR SETUP END
+  ledcWriteTone(0, 1000);
+  delay(50);
+  ledcWriteTone(0, 0);
+  delay(175);
+  ledcWriteTone(0, 1000);
+  delay(50);
+  ledcWriteTone(0, 0);
+
+  delay(1000);
+  enableMotor();
+  delay(300);
+  goToHome();
+  delay(300);
+  disableMotor();
+
+}
+
+
 void loop() {
 
   check_MAN_G();
@@ -198,17 +245,24 @@ void loop() {
   logica_G();
   logica_V();
 
+  // pagina web: jog del galvanico solo in MANUALE, poi aggiorno lo stato mostrato
+  jogWeb(0, M1, MAN_ACC, MAN_SPEED, STATE_G == 2);
+  aggiornaPaginaWeb();
+
 }
 
 void bolleOn() {
-  digitalWrite(DIO13,HIGH);
+  digitalWrite(PIN_BOLLE,HIGH);
 }
 
 void bolleOff() {
-  digitalWrite(DIO13,LOW);
+  digitalWrite(PIN_BOLLE,LOW);
 }
 
 void logica_G() {
+  if (BLOCCO && STATE_G != 2) {
+    return;
+  }
 
   if (STATE_G == 0) {
     // REMOTO - IDLE
@@ -458,12 +512,20 @@ void logica_V() {
 
 void check_STATE_G() {
 
+  // In BLOCCO: AUTO e REMOTE del galvanico disabilitati, MANUALE sempre permesso
+  if (BLOCCO && !f_MAN_G && STATE_G != 2) {
+    f_AUTO_G = false;
+    f_REM_G = false;
+    return;
+  }
+
   if (f_MAN_G) {
 
     Serial.println("MANUALE");
 
     f_MAN_G = false;
     STATE_G = 2;
+    HOMED = false;  // al ritorno in AUTO rifà lo zero
 
     enableMotor();
     bolleOff();
@@ -486,6 +548,7 @@ void check_STATE_G() {
 
     if (!HOMED) {
       goToHome();
+      if (!HOMED) return;  // timeout: macchina in BLOCCO
     }
 
     if (M1->isRunning()) {
@@ -507,7 +570,7 @@ void check_STATE_G() {
 
     Serial.println("REMOTO");
 
-    if (digitalRead(ADIO1)) {
+    if (leggiAvvioG()) {
 
       STATE_G = 1;
       f_AUTO_G = true;
@@ -556,7 +619,7 @@ void check_STATE_V() {
   } else if (f_REM_V) {
     f_REM_V = false;
 
-    if (digitalRead(ADIO7)) {
+    if (leggiAvvioV()) {
 
       STATE_V = 1;
       f_AUTO_V = true;
@@ -578,7 +641,7 @@ void check_STATE_V() {
 void check_MAN_G() {
   if (!s_MAN_G) {
     if ((millis() - t_MAN_G) > 200) {
-      if (digitalRead(ADIO2)) {
+      if (leggiManG()) {
         if (p_MAN_G) {
           p_MAN_G = false;
           tS_MAN_G = millis();
@@ -602,7 +665,7 @@ void check_MAN_G() {
     }
   } else {
     if ((millis() - t_MAN_G) > 200) {
-      if (!digitalRead(ADIO2)) {
+      if (!leggiManG()) {
         t_MAN_G = millis();
         s_MAN_G = false;
         p_MAN_G = true;
@@ -622,7 +685,7 @@ void check_MAN_G() {
 void check_MAN_V() {
   if (!s_MAN_V) {
     if ((millis() - t_MAN_V) > 200) {
-      if (digitalRead(ADIO8)) {
+      if (digitalRead(PIN_SEL_MAN_V)) {
         if (p_MAN_V) {
           p_MAN_V = false;
           tS_MAN_V = millis();
@@ -646,7 +709,7 @@ void check_MAN_V() {
     }
   } else {
     if ((millis() - t_MAN_V) > 200) {
-      if (!digitalRead(ADIO8)) {
+      if (!digitalRead(PIN_SEL_MAN_V)) {
         t_MAN_V = millis();
         s_MAN_V = false;
         p_MAN_V = true;
@@ -666,7 +729,7 @@ void check_MAN_V() {
 void check_AUTO_G() {
   if (!s_AUTO_G) {
     if ((millis() - t_AUTO_G) > 200) {
-      if (digitalRead(ADIO1)) {
+      if (leggiAvvioG()) {
         if (p_AUTO_G) {
           p_AUTO_G = false;
           tS_AUTO_G = millis();
@@ -690,7 +753,7 @@ void check_AUTO_G() {
     }
   } else {
     if ((millis() - t_AUTO_G) > 200) {
-      if (!digitalRead(ADIO1)) {
+      if (!leggiAvvioG()) {
         if (pO_AUTO_G) {
           pO_AUTO_G = false;
           tSO_AUTO_G = millis();
@@ -718,7 +781,7 @@ void check_AUTO_G() {
 void check_AUTO_V() {
   if (!s_AUTO_V) {
     if ((millis() - t_AUTO_V) > 200) {
-      if (digitalRead(ADIO7)) {
+      if (leggiAvvioV()) {
         if (p_AUTO_V) {
           p_AUTO_V = false;
           tS_AUTO_V = millis();
@@ -741,7 +804,7 @@ void check_AUTO_V() {
     }
   } else {
     if ((millis() - t_AUTO_V) > 200) {
-      if (!digitalRead(ADIO7)) {
+      if (!leggiAvvioV()) {
         t_AUTO_V = millis();
         s_AUTO_V = false;
         p_AUTO_V = true;
@@ -760,7 +823,7 @@ void check_AUTO_V() {
 void check_FWD() {
   if (!s_FWD) {
     if ((millis() - t_FWD) > 200) {
-      if (digitalRead(ADIO4)) {
+      if (digitalRead(PIN_BTN_FWD)) {
         if (p_FWD) {
           p_FWD = false;
           tS_FWD = millis();
@@ -784,7 +847,7 @@ void check_FWD() {
     }
   } else {
     if ((millis() - t_FWD) > 200) {
-      if (!digitalRead(ADIO4)) {
+      if (!digitalRead(PIN_BTN_FWD)) {
         t_FWD = millis();
         s_FWD = false;
         p_FWD = true;
@@ -801,7 +864,7 @@ void check_FWD() {
 void check_BWD() {
   if (!s_BWD) {
     if ((millis() - t_BWD) > 200) {
-      if (digitalRead(ADIO5)) {
+      if (digitalRead(PIN_BTN_BWD)) {
         if (p_BWD) {
           p_BWD = false;
           tS_BWD = millis();
@@ -825,7 +888,7 @@ void check_BWD() {
     }
   } else {
     if ((millis() - t_BWD) > 200) {
-      if (!digitalRead(ADIO5)) {
+      if (!digitalRead(PIN_BTN_BWD)) {
         t_BWD = millis();
         s_BWD = false;
         p_BWD = true;
@@ -842,45 +905,127 @@ void check_BWD() {
 
 
 void goToHome() {
+  // Mai in BLOCCO o in MANUALE (in MAN i finecorsa sono ignorati)
+  if (BLOCCO || STATE_G == 2) return;
+
+  HOMED = false;
+  paginaWeb.impostaStato("Galvanico: azzeramento in corso");
 
   if (M1->isRunning()) {
     M1->stopMove();
-    while (M1->isRunning()) {};
+    while (M1->isRunning()) {}
   }
 
-  bool exit_flag = false;
-
-  M1->setSpeedInHz(MAN_SPEED);  
+  M1->setSpeedInHz(MAN_SPEED);
   M1->setAcceleration(MAN_ACC);
   M1->applySpeedAcceleration();
-  
+
   M1->runBackward();
+  uint32_t inizio = millis();
 
-  while (!exit_flag) {
-
-    if (digitalRead(DIO9)) {
-      M1->forceStop();
-      delay(100);
-      M1->move(ZERO_OFFSET);
-      while (M1->isRunning()) {}
-      exit_flag = true;
+  while (!digitalRead(PIN_FC_HOME)) {
+    if ((millis() - inizio) > TIMEOUT_HOME_MS) {
+      attivaBlocco();   // finecorsa non trovato: probabilmente rotto
+      return;
     }
-
   }
 
+  M1->forceStop();
+  delay(100);
+  M1->move(ZERO_OFFSET);
+  while (M1->isRunning()) {}
+
   M1->setCurrentPosition(0);
-
   HOMED = true;
+}
 
+// Ferma tutto e mette la macchina in BLOCCO (resta anche da spenta)
+void attivaBlocco() {
+  M1->forceStop();
+  while (M1->isRunning()) {}
+  disableMotor();
+  HOMED = false;
+  BLOCCO = true;
+  STATE_G = 0;
+  bolleOff();
+  sicurezza.putBool("blocco", true);
+  paginaWeb.impostaBlocco(true);
+  Serial.println("BLOCCO: finecorsa non trovato entro il tempo massimo. Riaccendere in MANUALE per sbloccare.");
+  for (int k = 0; k < 3; k++) {   // tre beep lunghi
+    ledcWriteTone(0, 1000);
+    delay(400);
+    ledcWriteTone(0, 0);
+    delay(200);
+  }
+}
+
+// Legge il blocco salvato; se si accende con il selettore su MANUALE lo cancella
+void inizializzaSicurezza() {
+  sicurezza.begin("sicurezza", false);
+  BLOCCO = sicurezza.getBool("blocco", false);
+
+  bool man = digitalRead(PIN_SEL_MAN_G);
+  uint32_t stabileDa = millis();
+  while ((millis() - stabileDa) < STABILITA_SELETTORE_MS) {
+    bool lettura = digitalRead(PIN_SEL_MAN_G);
+    if (lettura != man) {
+      man = lettura;
+      stabileDa = millis();
+    }
+    delay(1);
+  }
+
+  if (BLOCCO && man) {
+    BLOCCO = false;
+    sicurezza.putBool("blocco", false);
+    Serial.println("Sicurezza: BLOCCO cancellato (accensione in MANUALE)");
+  } else if (BLOCCO) {
+    Serial.println("BLOCCO attivo: AUTO/REMOTE disabilitati. Riaccendere in MANUALE.");
+  }
 }
 
 void disableMotor() {
   delay(100);  // DA TESTARE
-  digitalWrite(DIO12, LOW);
+  digitalWrite(PIN_ENABLE, LOW);
 }
 
 void enableMotor() {
-  digitalWrite(DIO12, HIGH);
+  digitalWrite(PIN_ENABLE, HIGH);
   delay(100);  // DA TESTARE
 }
 
+// ---------------------------------------------------------------------
+// PAGINA WEB (vedi firmware/lib_comune/PaginaWebNicchie)
+// Due canali di AVVIO (galvanico e vento). Il manuale da pagina muove solo
+// il motore del galvanico; il vento si comanda in manuale solo dal quadro.
+// ---------------------------------------------------------------------
+
+// Selettori "visti" dal programma: quello fisico OPPURE il comando della pagina.
+// La pagina comanda solo con i selettori fisici su AUTO (lo controlla la libreria).
+bool leggiManG()   { return digitalRead(PIN_SEL_MAN_G)  || paginaWeb.manualeWeb(); }
+bool leggiAvvioG() { return digitalRead(PIN_SEL_AUTO_G) || paginaWeb.avvioWeb(0); }
+bool leggiAvvioV() { return digitalRead(PIN_SEL_AUTO_V) || paginaWeb.avvioWeb(1); }
+
+void configuraPaginaWeb() {
+  paginaWeb.aggiungiAvvio("GALVANICO", PIN_SEL_AUTO_G, PIN_SEL_MAN_G);
+  paginaWeb.aggiungiAvvio("VENTO", PIN_SEL_AUTO_V, PIN_SEL_MAN_V);
+  paginaWeb.aggiungiFinecorsa("Finecorsa galvanico", PIN_FC_HOME);
+  paginaWeb.aggiungiMotore("GALVANICO", JOG_LENTO, JOG_MEDIO, JOG_VELOCE);
+  paginaWeb.aggiungiSpia("Bolle");
+  paginaWeb.aggiungiSpia("Vento uscita 1");
+  paginaWeb.aggiungiSpia("Vento uscita 2");
+  paginaWeb.begin(NOME_RETE, "Galvanico e vento");
+}
+
+void aggiornaPaginaWeb() {
+  static const char* nomi[] = { "fermo", "ciclo", "manuale" };
+  char testo[64];
+  const char* g = BLOCCO && STATE_G != 2 ? "BLOCCO"
+                : (STATE_G == 2 && paginaWeb.manualeWeb()) ? "manuale da pagina" : nomi[STATE_G % 3];
+  snprintf(testo, sizeof(testo), "Galvanico: %s - Vento: %s", g, nomi[STATE_V % 3]);
+  paginaWeb.impostaStato(testo);
+  paginaWeb.impostaBlocco(BLOCCO);
+  paginaWeb.impostaSpia(0, pwnUscita(PIN_BOLLE));
+  paginaWeb.impostaSpia(1, pwnUscita(DIO14));
+  paginaWeb.impostaSpia(2, pwnUscita(DIO15));
+}

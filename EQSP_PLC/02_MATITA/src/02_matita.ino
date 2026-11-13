@@ -1,14 +1,8 @@
 // 18/08/2025
-// LOGICA OK
-// PROBLEMA DRIVER!
-// DA VERIFICARE CORSA
 
-// DRIVER (TUTTI E 2 UGUALI) DM320T
-// 01 02 03 04 05 06 
+// DRIVER DM320T
+// 01  02 03 04 05  06 
 // ON ON ON ON ON ON 
-
-// 10/09/2025 @POLLENE
-// OK
 
 #define ADIO1   1
 #define ADIO2   2
@@ -42,19 +36,20 @@
 
 #include "FastAccelStepper.h"
 
-#define BASE_SPEED  2000
-#define BASE_ACC    1000
+#define BASE_SPEED  40
+#define BASE_ACC    160
 
-#define TOP_SPEED  2000
-#define TOP_ACC    500
+#define TOP_SPEED  500
+#define TOP_ACC    5000
 
-#define MAN_SPEED 1000
-#define MAN_ACC 5000
+#define MAN_SPEED 500
+#define MAN_ACC 1000
 
-#define ZERO_OFFSET 250
+#define ZERO_OFFSET_BASE 5
+#define ZERO_OFFSET_TOP 5
 
-#define CORSA_BASE 15000
-#define CORSA_TOP 14000
+#define CORSA_BASE -120
+#define CORSA_TOP 1200
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *BASE = NULL;
@@ -154,9 +149,8 @@ bool s_SEL_1 = false, p_SEL_1 = true;
 unsigned long t_SEL_2 = 0, tS_SEL_2 = 0;
 bool s_SEL_2 = false, p_SEL_2 = true;
 
-bool fast_sprint = true;
-
 bool HOMED = false;
+unsigned long tSequenza = 0;
 
 void loop() {
 
@@ -164,6 +158,7 @@ void loop() {
   check_AUTO();
   check_FWD();
   check_BWD();
+
   check_SEL_1();
   check_SEL_2();
 
@@ -181,24 +176,34 @@ void logica() {
   } else if (STATE == 1) {
     // AUTO
 
-    if ((!BASE->isRunning()) && (!TOP->isRunning())) {
+    if (!BASE->isRunning()) {
 
       if (BASE->getCurrentPosition() == CORSA_BASE) {
-        BASE->moveTo(0);
-        TOP->moveTo(0);
+        act_BASE(-CORSA_BASE,6);
       }
-
       else if (BASE->getCurrentPosition() == 0) {
-        BASE->moveTo(CORSA_BASE);
-        TOP->moveTo(CORSA_TOP);
+        act_BASE(CORSA_BASE,6);
+      } else {
+        long pos_base = BASE->getCurrentPosition();
+        act_BASE(0 - pos_base,6);
       }
 
-      else {
+    }
 
-        goToHome();
+    if ((millis() - tSequenza) > 3000){
+      if (!TOP->isRunning()) {
+
+        if (TOP->getCurrentPosition() == CORSA_TOP) {
+          act_TOP(-CORSA_TOP,6);
+        }
+        else if (TOP->getCurrentPosition() == 0) {
+          act_TOP(CORSA_TOP,6);
+        } else {
+          long pos_top = TOP->getCurrentPosition();
+          act_BASE(0 - pos_top,6);
+        }
 
       }
-
     }
     
 
@@ -209,28 +214,24 @@ void logica() {
         f_FWD_GO = false;
 
         BASE->runForward();
-        Serial.println("BASE FWD");
       }
 
       if (f_FWD_STOP) {
         f_FWD_STOP = false;
 
         BASE->stopMove();
-        Serial.println("BASE STOP");
       }
 
       if (f_BWD_GO) {
         f_BWD_GO = false;
 
         BASE->runBackward();
-        Serial.println("BASE BWD");
       }
 
       if (f_BWD_STOP) {
         f_BWD_STOP = false;
 
         BASE->stopMove();
-        Serial.println("BASE STOP");
       }  
     }
 
@@ -272,14 +273,14 @@ void check_STATE() {
     STATE = 2;
     enableMotor();
 
-    if ((BASE->isRunning()) || (TOP->isRunning())) {
-      BASE->stopMove();
-      TOP->stopMove();
-      while ((BASE->isRunning()) || (TOP->isRunning())) {}
-    }
+    BASE->stopMove();
+    while (BASE->isRunning());
 
-    BASE->setSpeedInHz(MAN_SPEED);  
-    BASE->setAcceleration(MAN_ACC);
+    TOP->stopMove();
+    while (TOP->isRunning());
+
+    BASE->setSpeedInHz(BASE_SPEED);  
+    BASE->setAcceleration(BASE_ACC);
     BASE->applySpeedAcceleration();
 
     TOP->setSpeedInHz(MAN_SPEED);  
@@ -305,14 +306,7 @@ void check_STATE() {
     }
 
     Serial.println("INIZIO LOOP");
-
-    BASE->setSpeedInHz(BASE_SPEED); 
-    BASE->setAcceleration(BASE_ACC);
-    BASE->applySpeedAcceleration();
-
-    TOP->setSpeedInHz(TOP_SPEED); 
-    TOP->setAcceleration(TOP_ACC);
-    TOP->applySpeedAcceleration();
+    tSequenza = millis();
 
   } else if (f_REM) {
 
@@ -325,7 +319,9 @@ void check_STATE() {
     } else {
 
       STATE = 0;
+
       goToHome();
+
       disableMotor();
 
     }
@@ -591,36 +587,40 @@ void goToHome() {
   bool exit_flag_base = false;
   bool exit_flag_top = false;
 
-  BASE->setSpeedInHz(MAN_SPEED);  
-  BASE->setAcceleration(MAN_ACC);
+  BASE->setSpeedInHz(BASE_SPEED);  
+  BASE->setAcceleration(BASE_ACC);
   BASE->applySpeedAcceleration();
 
   TOP->setSpeedInHz(MAN_SPEED);  
   TOP->setAcceleration(MAN_ACC);
   TOP->applySpeedAcceleration();
 
-  BASE->runBackward();
+  BASE->runForward();
 
   while (!exit_flag_base) {
+
     if (digitalRead(ADIO8)) {
       BASE->forceStop();
       exit_flag_base = true;
     }
+
   }
 
   TOP->runBackward();
 
   while (!exit_flag_top) {
+
     if (digitalRead(DIO9)) {
       TOP->forceStop();
       exit_flag_top = true;
     }
+
   }
 
   delay(100);
 
-  BASE->move(ZERO_OFFSET);
-  TOP->move(ZERO_OFFSET);
+  BASE->move(ZERO_OFFSET_BASE);
+  TOP->move(ZERO_OFFSET_TOP);
 
   while ((BASE->isRunning()) || (TOP->isRunning())) {}
 
@@ -643,3 +643,36 @@ void enableMotor() {
   delay(100);  // DA TESTARE
 }
 
+void act_BASE(int32_t pos, float tempo) {
+
+  long V_max, A_cal;
+
+  float V_media = (float)abs(pos) / tempo;
+
+  V_max = V_media * 2;   // step / s
+  A_cal = V_max / (tempo / 2);   // step / s / s
+
+  BASE->setSpeedInHz(V_max);  
+  BASE->setAcceleration(A_cal);
+  BASE->applySpeedAcceleration();
+
+  BASE->move(pos);
+
+}
+
+void act_TOP(int32_t pos, float tempo) {
+
+  long V_max, A_cal;
+
+  float V_media = (float)abs(pos) / tempo;
+
+  V_max = V_media * 2;   // step / s
+  A_cal = V_max / (tempo / 2);   // step / s / s
+
+  TOP->setSpeedInHz(V_max);  
+  TOP->setAcceleration(A_cal);
+  TOP->applySpeedAcceleration();
+
+  TOP->move(pos);
+
+}

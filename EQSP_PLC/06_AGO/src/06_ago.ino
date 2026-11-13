@@ -1,4 +1,7 @@
-// 18/08/2025
+// 06_AGO - scheda EQSP32 (base 18/08/2025 di Paolo, con motore BASE)
+// AUTO: zero di BASE e TOP sui finecorsa, poi BASE e TOP oscillano tra 0 e la corsa (6 s per tratta).
+// MAN: pulsanti AVANTI/INDIETRO sul motore scelto (BASE o TOP), finecorsa ignorati.
+// REMOTE: torna a zero e spegne i driver.
 
 // DRIVER DM320T
 // 01  02 03 04 05  06 
@@ -35,106 +38,62 @@
 #define SCL_PIN 34
 
 #include "FastAccelStepper.h"
+#include <Preferences.h>
+#include <PaginaWebNicchie.h>   // WiFi proprio + pagina comandi (firmware/lib_comune)
+#include <JogWebFAS.h>
 
-#define BASE_SPEED  40*4    //
-#define BASE_ACC    160*4
+// ---- NOMI DEGLI INGRESSI/USCITE ----
+#define PIN_SEL_AUTO    ADIO1   // selettore su AUTO
+#define PIN_SEL_MAN     ADIO2   // selettore su MANUALE
+#define PIN_FC_TOP      ADIO3   // finecorsa zero TOP (prima era DIO9)
+#define PIN_BTN_FWD     ADIO4   // pulsante avanti (solo MAN)
+#define PIN_BTN_BWD     ADIO5   // pulsante indietro (solo MAN)
+#define PIN_SEL_BASE    ADIO6   // scelta motore BASE (solo MAN)
+#define PIN_SEL_TOP     ADIO7   // scelta motore TOP (solo MAN)
+#define PIN_FC_BASE     ADIO8   // finecorsa zero BASE
+#define PIN_BASE_STEP   DIO10
+#define PIN_BASE_DIR    DIO11
+#define PIN_BASE_EN     DIO12
+#define PIN_TOP_STEP    DIO13
+#define PIN_TOP_DIR     DIO14
+#define PIN_TOP_EN      DIO15
 
-#define TOP_SPEED  500
-#define TOP_ACC    5000
+// ---- SICUREZZA ----
+#define TIMEOUT_HOME_BASE_MS   20000UL  // ms: tempo massimo per trovare il finecorsa BASE (motore lento)
+#define TIMEOUT_HOME_TOP_MS    10000UL  // ms: tempo massimo per trovare il finecorsa TOP
+#define STABILITA_SELETTORE_MS 200UL    // ms
 
-#define MAN_SPEED 500
-#define MAN_ACC 1000
+#define BASE_SPEED  40      // passi/s: BASE in azzeramento e manuale
+#define BASE_ACC    160     // passi/s^2
 
-#define ZERO_OFFSET_BASE 5
-#define ZERO_OFFSET_TOP 5
+#define TOP_SPEED  500      // passi/s
+#define TOP_ACC    5000     // passi/s^2
 
-#define CORSA_BASE -120
-#define CORSA_TOP 1200
+#define MAN_SPEED 500       // passi/s: TOP in azzeramento e manuale
+#define MAN_ACC 1000        // passi/s^2
+
+#define ZERO_OFFSET_BASE 5  // passi dopo il finecorsa
+#define ZERO_OFFSET_TOP 5   // passi dopo il finecorsa
+
+#define CORSA_BASE -120     // passi: corsa BASE in AUTO
+#define CORSA_TOP 1200      // passi: corsa TOP in AUTO
+#define TEMPO_TRATTA_S 6    // s: durata di ogni tratta in AUTO
+#define RITARDO_TOP_MS 3000UL // ms: il TOP parte dopo l'avvio del ciclo
+
+// ---- PAGINA WEB ----
+#define NOME_RETE        "06_AGO"          // nome della rete WiFi della scheda
+#define JOG_LENTO_TOP    (MAN_SPEED / 2)   // passi/s: jog da pagina TOP "Lento"
+#define JOG_MEDIO_TOP    MAN_SPEED         // passi/s: TOP come i pulsanti del quadro
+#define JOG_VELOCE_TOP   (MAN_SPEED * 2)   // passi/s: massimo da pagina TOP
+#define JOG_LENTO_BASE   (BASE_SPEED / 2)  // passi/s: jog da pagina BASE "Lento"
+#define JOG_MEDIO_BASE   BASE_SPEED        // passi/s: BASE come i pulsanti del quadro
+#define JOG_VELOCE_BASE  (BASE_SPEED * 2)  // passi/s: massimo da pagina BASE
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *BASE = NULL;
 FastAccelStepper *TOP = NULL;
 
 uint8_t STATE = 0; // 0 REMOTE - 1 AUTO - 2 MAN
-
-void setup() {
-
-  delay(1000);
-
-  // DEBUG
-  Serial.begin(115200);
-  delay(100);
-
-  // LED OFF
-  pinMode(37, INPUT);
-
-  // PANEL INPUT
-  pinMode(ADIO1, INPUT);  // AUTO
-  pinMode(ADIO2, INPUT);  // MAN
-
-  pinMode(ADIO4, INPUT);  // FWD
-  pinMode(ADIO5, INPUT);  // BWD
-
-  pinMode(ADIO6, INPUT);  // SEL BASE
-  pinMode(ADIO7, INPUT);  // SEL TOP
-
-  pinMode(ADIO8, INPUT);  // FINE CORSA BASE
-  pinMode(ADIO3, INPUT);   // FINE CORSA TOP //DIO9
-
-  // DRIVER OUTPUT
-
-  pinMode(DIO12, OUTPUT);
-  pinMode(DIO15, OUTPUT);
-  //disableMotor();
-  enableMotor();
-
-  engine.init();
-
-  BASE = engine.stepperConnectToPin(DIO10);
-
-  if (BASE) {
-      BASE->setDirectionPin(DIO11, false);  
-      BASE->setSpeedInHz(BASE_SPEED);  
-      BASE->setAcceleration(BASE_ACC);   
-  }
-
-  TOP = engine.stepperConnectToPin(DIO13);
-
-  if (TOP) {
-      TOP->setDirectionPin(DIO14, false);  
-      TOP->setSpeedInHz(TOP_SPEED);  
-      TOP->setAcceleration(TOP_ACC);   
-  } 
-
-  // BUZZER 
-  ledcSetup(0, 1000, 8);
-  ledcAttachPin(BUZZ, 0);
-
-  delay(1000);
-
-  // INITIAL STATE
-  if (digitalRead(ADIO2)) {
-    STATE = 2;
-  } else {
-    if (digitalRead(ADIO1)) {
-      STATE = 1;
-    } else {
-      STATE = 0;
-    }
-  }
-
-  // DOUBLE BEEP FOR SETUP END
-  ledcWriteTone(0, 1000);
-  delay(50);
-  ledcWriteTone(0, 0);
-  delay(175);
-  ledcWriteTone(0, 1000);
-  delay(50);
-  ledcWriteTone(0, 0);
-
-  delay(1000);
-
-}
 
 unsigned long t_MAN = 0, tS_MAN = 0;
 bool s_MAN = false, p_MAN = true, f_MAN = false;
@@ -151,7 +110,103 @@ unsigned long t_SEL_2 = 0, tS_SEL_2 = 0;
 bool s_SEL_2 = false, p_SEL_2 = true;
 
 bool HOMED = false;
-unsigned long tSequenza = 0;
+unsigned long tSequenza = 0;   // inizio del ciclo AUTO
+
+// Blocco di sicurezza (salvato in memoria permanente)
+Preferences sicurezza;
+bool BLOCCO = false;
+
+void goToHome();
+void attivaBlocco();
+void inizializzaSicurezza();
+void enableMotor();
+void disableMotor();
+bool leggiMan();
+bool leggiAvvio();
+void configuraPaginaWeb();
+void aggiornaPaginaWeb();
+
+void setup() {
+
+  delay(1000);
+
+  // DEBUG
+  Serial.begin(115200);
+  delay(100);
+
+  // LED OFF
+  pinMode(LED_BLUE, INPUT);
+
+  // PANEL INPUT
+  pinMode(PIN_SEL_AUTO, INPUT);  // AUTO
+  pinMode(PIN_SEL_MAN, INPUT);  // MAN
+
+  pinMode(PIN_BTN_FWD, INPUT);  // FWD
+  pinMode(PIN_BTN_BWD, INPUT);  // BWD
+
+  pinMode(PIN_SEL_BASE, INPUT);  // SEL BASE
+  pinMode(PIN_SEL_TOP, INPUT);  // SEL TOP
+
+  pinMode(PIN_FC_BASE, INPUT);  // FINE CORSA BASE
+  pinMode(PIN_FC_TOP, INPUT);   // FINE CORSA TOP //DIO9
+
+  // DRIVER OUTPUT
+
+  pinMode(PIN_BASE_EN, OUTPUT);
+  pinMode(PIN_TOP_EN, OUTPUT);
+  disableMotor();
+
+  engine.init();
+
+  BASE = engine.stepperConnectToPin(PIN_BASE_STEP);
+
+  if (BASE) {
+      BASE->setDirectionPin(PIN_BASE_DIR, false);  
+      BASE->setSpeedInHz(BASE_SPEED);  
+      BASE->setAcceleration(BASE_ACC);   
+  }
+
+  TOP = engine.stepperConnectToPin(PIN_TOP_STEP);
+
+  if (TOP) {
+      TOP->setDirectionPin(PIN_TOP_DIR, false);  
+      TOP->setSpeedInHz(TOP_SPEED);  
+      TOP->setAcceleration(TOP_ACC);   
+  } 
+
+  // BUZZER 
+  ledcSetup(0, 1000, 8);
+  ledcAttachPin(BUZZ, 0);
+
+  delay(1000);
+
+  inizializzaSicurezza();
+
+  // INITIAL STATE
+  if (digitalRead(PIN_SEL_MAN)) {
+    STATE = 2;
+  } else {
+    if (digitalRead(PIN_SEL_AUTO)) {
+      STATE = 1;
+    } else {
+      STATE = 0;
+    }
+  }
+
+  configuraPaginaWeb();
+
+  // DOUBLE BEEP FOR SETUP END
+  ledcWriteTone(0, 1000);
+  delay(50);
+  ledcWriteTone(0, 0);
+  delay(175);
+  ledcWriteTone(0, 1000);
+  delay(50);
+  ledcWriteTone(0, 0);
+
+  delay(1000);
+
+}
 
 void loop() {
 
@@ -167,29 +222,37 @@ void loop() {
 
   logica();
 
+  // pagina web: jog solo in MANUALE, poi aggiorno lo stato mostrato
+  jogWeb(0, TOP,  MAN_ACC,  MAN_SPEED,  STATE == 2);
+  jogWeb(1, BASE, BASE_ACC, BASE_SPEED, STATE == 2);
+  aggiornaPaginaWeb();
+
 }
 
 void logica() {
+  if (BLOCCO && STATE != 2) {
+    delay(50);
+    return;
+  }
   if (STATE == 0) {
     // REMOTO - IDLE
     delay(50);
 
   } else if (STATE == 1) {
     // AUTO
+    if (!BASE->isRunning()) {
+      long pos_base = BASE->getCurrentPosition();
+      if (pos_base == CORSA_BASE)  act_BASE(-CORSA_BASE, TEMPO_TRATTA_S);
+      else if (pos_base == 0)      act_BASE(CORSA_BASE, TEMPO_TRATTA_S);
+      else                         act_BASE(0 - pos_base, TEMPO_TRATTA_S);
+    }
 
-    if ((millis() - tSequenza) > 3000){
+    if ((millis() - tSequenza) > RITARDO_TOP_MS) {
       if (!TOP->isRunning()) {
-
-        if (TOP->getCurrentPosition() == CORSA_TOP) {
-          act_TOP(-CORSA_TOP,6);
-        }
-        else if (TOP->getCurrentPosition() == 0) {
-          act_TOP(CORSA_TOP,6);
-        } else {
-          long pos_top = TOP->getCurrentPosition();
-          act_TOP(0 - pos_top,6);
-        }
-
+        long pos_top = TOP->getCurrentPosition();
+        if (pos_top == CORSA_TOP)    act_TOP(-CORSA_TOP, TEMPO_TRATTA_S);
+        else if (pos_top == 0)       act_TOP(CORSA_TOP, TEMPO_TRATTA_S);
+        else                         act_TOP(0 - pos_top, TEMPO_TRATTA_S);   // (nel codice 18/08 qui c'era act_BASE: corretto)
       }
     }
     
@@ -254,14 +317,29 @@ void logica() {
 
 void check_STATE() {
 
+  // In BLOCCO: AUTO e REMOTE disabilitati, MANUALE sempre permesso
+  if (BLOCCO && !f_MAN && STATE != 2) {
+    f_AUTO = false;
+    f_REM = false;
+    return;
+  }
+
   if (f_MAN) {
 
     f_MAN = false;
     STATE = 2;
+    HOMED = false;  // al ritorno in AUTO rifà lo zero
     enableMotor();
+
+    BASE->stopMove();
+    while (BASE->isRunning());
 
     TOP->stopMove();
     while (TOP->isRunning());
+
+    BASE->setSpeedInHz(BASE_SPEED);
+    BASE->setAcceleration(BASE_ACC);
+    BASE->applySpeedAcceleration();
 
     TOP->setSpeedInHz(MAN_SPEED);  
     TOP->setAcceleration(MAN_ACC);
@@ -276,12 +354,13 @@ void check_STATE() {
 
     if (!HOMED) {
       goToHome();
+      if (!HOMED) return;  // timeout: macchina in BLOCCO
     }
 
-    if (TOP->isRunning()) {
+    if ((BASE->isRunning()) || (TOP->isRunning())) {
+      BASE->stopMove();
       TOP->stopMove();
-
-      while (TOP->isRunning());
+      while ((BASE->isRunning()) || (TOP->isRunning()));
     }
 
     Serial.println("INIZIO LOOP");
@@ -290,7 +369,7 @@ void check_STATE() {
   } else if (f_REM) {
 
     f_REM = false;
-    if (digitalRead(ADIO1)) {
+    if (leggiAvvio()) {
 
       STATE = 1;
       f_AUTO = true;
@@ -301,7 +380,7 @@ void check_STATE() {
 
       goToHome();
 
-      //disableMotor();
+      disableMotor();
 
     }
 
@@ -312,7 +391,7 @@ void check_STATE() {
 void check_MAN() {
   if (!s_MAN) {
     if ((millis() - t_MAN) > 200) {
-      if (digitalRead(ADIO2)) {
+      if (leggiMan()) {
         if (p_MAN) {
           p_MAN = false;
           tS_MAN = millis();
@@ -336,7 +415,7 @@ void check_MAN() {
     }
   } else {
     if ((millis() - t_MAN) > 200) {
-      if (!digitalRead(ADIO2)) {
+      if (!leggiMan()) {
         t_MAN = millis();
         s_MAN = false;
         p_MAN = true;
@@ -356,7 +435,7 @@ void check_MAN() {
 void check_AUTO() {
   if (!s_AUTO) {
     if ((millis() - t_AUTO) > 200) {
-      if (digitalRead(ADIO1)) {
+      if (leggiAvvio()) {
         if (p_AUTO) {
           p_AUTO = false;
           tS_AUTO = millis();
@@ -379,7 +458,7 @@ void check_AUTO() {
     }
   } else {
     if ((millis() - t_AUTO) > 200) {
-      if (!digitalRead(ADIO1)) {
+      if (!leggiAvvio()) {
         t_AUTO = millis();
         s_AUTO = false;
         p_AUTO = true;
@@ -398,7 +477,7 @@ void check_AUTO() {
 void check_FWD() {
   if (!s_FWD) {
     if ((millis() - t_FWD) > 200) {
-      if (digitalRead(ADIO4)) {
+      if (digitalRead(PIN_BTN_FWD)) {
         if (p_FWD) {
           p_FWD = false;
           tS_FWD = millis();
@@ -422,7 +501,7 @@ void check_FWD() {
     }
   } else {
     if ((millis() - t_FWD) > 200) {
-      if (!digitalRead(ADIO4)) {
+      if (!digitalRead(PIN_BTN_FWD)) {
         t_FWD = millis();
         s_FWD = false;
         p_FWD = true;
@@ -439,7 +518,7 @@ void check_FWD() {
 void check_BWD() {
   if (!s_BWD) {
     if ((millis() - t_BWD) > 200) {
-      if (digitalRead(ADIO5)) {
+      if (digitalRead(PIN_BTN_BWD)) {
         if (p_BWD) {
           p_BWD = false;
           tS_BWD = millis();
@@ -463,7 +542,7 @@ void check_BWD() {
     }
   } else {
     if ((millis() - t_BWD) > 200) {
-      if (!digitalRead(ADIO5)) {
+      if (!digitalRead(PIN_BTN_BWD)) {
         t_BWD = millis();
         s_BWD = false;
         p_BWD = true;
@@ -481,7 +560,7 @@ void check_BWD() {
 void check_SEL_1() {
   if (!s_SEL_1) {
     if ((millis() - t_SEL_1) > 200) {
-      if (digitalRead(ADIO6)) {
+      if (digitalRead(PIN_SEL_BASE)) {
         if (p_SEL_1) {
           p_SEL_1 = false;
           tS_SEL_1 = millis();
@@ -504,7 +583,7 @@ void check_SEL_1() {
     }
   } else {
     if ((millis() - t_SEL_1) > 200) {
-      if (!digitalRead(ADIO6)) {
+      if (!digitalRead(PIN_SEL_BASE)) {
         t_SEL_1 = millis();
         s_SEL_1 = false;
         p_SEL_1 = true;
@@ -519,7 +598,7 @@ void check_SEL_1() {
 void check_SEL_2() {
   if (!s_SEL_2) {
     if ((millis() - t_SEL_2) > 200) {
-      if (digitalRead(ADIO7)) {
+      if (digitalRead(PIN_SEL_TOP)) {
         if (p_SEL_2) {
           p_SEL_2 = false;
           tS_SEL_2 = millis();
@@ -542,7 +621,7 @@ void check_SEL_2() {
     }
   } else {
     if ((millis() - t_SEL_2) > 200) {
-      if (!digitalRead(ADIO7)) {
+      if (!digitalRead(PIN_SEL_TOP)) {
         t_SEL_2 = millis();
         s_SEL_2 = false;
         p_SEL_2 = true;
@@ -556,57 +635,114 @@ void check_SEL_2() {
 
 
 void goToHome() {
+  // Mai in BLOCCO o in MANUALE (in MAN i finecorsa sono ignorati)
+  if (BLOCCO || STATE == 2) return;
 
-  if (TOP->isRunning()) {
+  HOMED = false;
+  paginaWeb.impostaStato("Azzeramento in corso");
+
+  if ((BASE->isRunning()) || (TOP->isRunning())) {
+    BASE->stopMove();
     TOP->stopMove();
-    while (TOP->isRunning());
+    while ((BASE->isRunning()) || (TOP->isRunning()));
   }
 
-  bool exit_flag_top = false;
+  BASE->setSpeedInHz(BASE_SPEED);
+  BASE->setAcceleration(BASE_ACC);
+  BASE->applySpeedAcceleration();
 
-  TOP->setSpeedInHz(MAN_SPEED);  
+  TOP->setSpeedInHz(MAN_SPEED);
   TOP->setAcceleration(MAN_ACC);
   TOP->applySpeedAcceleration();
 
-  TOP->runBackward();
-
-  uint32_t timeout = millis();
-
-  while (!exit_flag_top) {
-
-    if ((millis() - timeout) > 10000) {
-      TOP->forceStop();
-      exit_flag_top = true;
+  // 1) BASE avanti fino al suo finecorsa
+  BASE->runForward();
+  uint32_t tInizio = millis();
+  while (!digitalRead(PIN_FC_BASE)) {
+    if ((millis() - tInizio) > TIMEOUT_HOME_BASE_MS) {
+      attivaBlocco();   // finecorsa BASE non trovato: NON si considera azzerato
+      return;
     }
-
-    if (digitalRead(ADIO3)) {
-      TOP->forceStop();
-      exit_flag_top = true;
-    }
-
   }
+  BASE->forceStop();
 
-  while(TOP->isRunning());
+  // 2) TOP indietro fino al suo finecorsa
+  TOP->runBackward();
+  tInizio = millis();
+  while (!digitalRead(PIN_FC_TOP)) {
+    if ((millis() - tInizio) > TIMEOUT_HOME_TOP_MS) {
+      attivaBlocco();   // finecorsa TOP non trovato: NON si considera azzerato
+      return;
+    }
+  }
+  TOP->forceStop();
 
+  delay(100);
+
+  BASE->move(ZERO_OFFSET_BASE);
   TOP->move(ZERO_OFFSET_TOP);
+  while ((BASE->isRunning()) || (TOP->isRunning()));
 
-  while (TOP->isRunning());
-
+  BASE->setCurrentPosition(0);
   TOP->setCurrentPosition(0);
 
   HOMED = true;
+}
 
+// Ferma tutto e mette la macchina in BLOCCO (resta anche da spenta)
+void attivaBlocco() {
+  BASE->forceStop();
+  TOP->forceStop();
+  while ((BASE->isRunning()) || (TOP->isRunning())) {}
+  disableMotor();
+  HOMED = false;
+  BLOCCO = true;
+  STATE = 0;
+  sicurezza.putBool("blocco", true);
+  paginaWeb.impostaBlocco(true);
+  Serial.println("BLOCCO: finecorsa non trovato entro il tempo massimo. Riaccendere in MANUALE per sbloccare.");
+  for (int k = 0; k < 3; k++) {   // tre beep lunghi
+    ledcWriteTone(0, 1000);
+    delay(400);
+    ledcWriteTone(0, 0);
+    delay(200);
+  }
+}
+
+// Legge il blocco salvato; se si accende con il selettore su MANUALE lo cancella
+void inizializzaSicurezza() {
+  sicurezza.begin("sicurezza", false);
+  BLOCCO = sicurezza.getBool("blocco", false);
+
+  bool man = digitalRead(PIN_SEL_MAN);
+  uint32_t stabileDa = millis();
+  while ((millis() - stabileDa) < STABILITA_SELETTORE_MS) {
+    bool lettura = digitalRead(PIN_SEL_MAN);
+    if (lettura != man) {
+      man = lettura;
+      stabileDa = millis();
+    }
+    delay(1);
+  }
+
+  if (BLOCCO && man) {
+    BLOCCO = false;
+    sicurezza.putBool("blocco", false);
+    Serial.println("Sicurezza: BLOCCO cancellato (accensione in MANUALE)");
+  } else if (BLOCCO) {
+    Serial.println("BLOCCO attivo: AUTO/REMOTE disabilitati. Riaccendere in MANUALE.");
+  }
 }
 
 void disableMotor() {
   delay(100);  // DA TESTARE
-  digitalWrite(DIO12, LOW);
-  digitalWrite(DIO15, LOW);
+  digitalWrite(PIN_BASE_EN, LOW);
+  digitalWrite(PIN_TOP_EN, LOW);
 }
 
 void enableMotor() {
-  digitalWrite(DIO12, HIGH);
-  digitalWrite(DIO15, HIGH);
+  digitalWrite(PIN_BASE_EN, HIGH);
+  digitalWrite(PIN_TOP_EN, HIGH);
   delay(100);  // DA TESTARE
 }
 
@@ -646,4 +782,30 @@ void act_TOP(int32_t pos, float tempo) {
 
   TOP->move(pos);
 
+}
+
+// ---------------------------------------------------------------------
+// PAGINA WEB (vedi firmware/lib_comune/PaginaWebNicchie)
+// ---------------------------------------------------------------------
+
+// Selettore "visto" dal programma: quello fisico OPPURE il comando della pagina.
+// La pagina comanda solo con il selettore fisico su AUTO (lo controlla la libreria).
+bool leggiMan()   { return digitalRead(PIN_SEL_MAN) || paginaWeb.manualeWeb(); }
+bool leggiAvvio() { return digitalRead(PIN_SEL_AUTO) || paginaWeb.avvioWeb(0); }
+
+void configuraPaginaWeb() {
+  paginaWeb.aggiungiAvvio("AGO", PIN_SEL_AUTO, PIN_SEL_MAN);
+  paginaWeb.aggiungiFinecorsa("Finecorsa TOP", PIN_FC_TOP);
+  paginaWeb.aggiungiFinecorsa("Finecorsa BASE", PIN_FC_BASE);
+  paginaWeb.aggiungiMotore("TOP", JOG_LENTO_TOP, JOG_MEDIO_TOP, JOG_VELOCE_TOP);
+  paginaWeb.aggiungiMotore("BASE", JOG_LENTO_BASE, JOG_MEDIO_BASE, JOG_VELOCE_BASE);
+  paginaWeb.begin(NOME_RETE, "Ago");
+}
+
+void aggiornaPaginaWeb() {
+  paginaWeb.impostaBlocco(BLOCCO);
+  if (STATE == 2)      paginaWeb.impostaStato(paginaWeb.manualeWeb() ? "Manuale da pagina" : "Manuale");
+  else if (BLOCCO)     paginaWeb.impostaStato("Ferma (BLOCCO)");
+  else if (STATE == 1) paginaWeb.impostaStato(HOMED ? "Ciclo automatico" : "Azzeramento");
+  else                 paginaWeb.impostaStato("Ferma, in attesa di avvio");
 }

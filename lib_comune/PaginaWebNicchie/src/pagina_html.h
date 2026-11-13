@@ -1,0 +1,461 @@
+// FILE GENERATO da genera_pagina.py partendo da pagina/pagina.html: non modificarlo a mano.
+#pragma once
+static const char PAGINA_HTML[] = R"PAGINA(<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#121518">
+<title>Nicchie - comandi</title>
+<style>
+:root{
+  --sfondo:#121518;--carta:#1b2026;--carta2:#232a31;--bordo:#2f3842;
+  --testo:#eef2f5;--tenue:#93a1ae;--giallo:#f2c230;--verde:#2fbf71;--verde-scuro:#1f8a50;
+  --rosso:#e5383b;--rosso-scuro:#a6232a;--ambra:#ff9f1c;--blu:#4ea8de;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--sfondo);color:var(--testo);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding-bottom:calc(104px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;cursor:pointer}
+[hidden]{display:none!important}
+.barra{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:#0d1012;border-bottom:3px solid var(--giallo)}
+.rete{font:700 18px/1.1 var(--mono);letter-spacing:.02em;word-break:break-all}
+.titolo{color:var(--tenue);font-size:13px}
+.conn{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tenue);white-space:nowrap}
+.pallino{width:12px;height:12px;border-radius:50%;background:var(--tenue)}
+.conn.ok .pallino{background:var(--verde);box-shadow:0 0 8px var(--verde)}
+.conn.ko .pallino{background:var(--rosso)}
+.conn.ko{color:#ffb3b5}
+.blocco{margin:12px 16px 0;padding:14px 16px;border-radius:12px;background:var(--rosso-scuro);border:2px solid var(--rosso);display:flex;flex-direction:column;gap:4px}
+.blocco strong{font-size:22px;letter-spacing:.08em}
+.avviso{margin:12px 16px 0;padding:12px 14px;border-radius:12px;background:#3a2e10;border:1px solid var(--giallo);color:#ffe9a8;font-size:15px}
+main{padding:12px 16px;display:grid;gap:12px;max-width:1120px;margin:0 auto}
+@media (min-width:900px){main{grid-template-columns:minmax(300px,2fr) 3fr;align-items:start}}
+.colonna{display:grid;gap:12px}
+.card{background:var(--carta);border:1px solid var(--bordo);border-radius:14px;padding:14px}
+h2{margin:0 0 10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--tenue)}
+.voci{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.voce{background:var(--carta2);border-radius:10px;padding:10px 12px;min-width:0}
+.etichetta{display:block;font-size:12px;color:var(--tenue)}
+.valore{display:block;font-weight:700;font-size:17px;overflow-wrap:anywhere}
+.valore.auto{color:var(--verde)}.valore.man{color:var(--giallo)}.valore.remote{color:var(--blu)}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ingresso{display:flex;align-items:center;gap:12px;background:var(--carta2);border-radius:10px;padding:10px 12px}
+.led{flex:none;width:22px;height:22px;border-radius:50%;background:#39434d;border:2px solid #4a5560}
+.ingresso.on .led{background:var(--verde);border-color:#7ff0ad;box-shadow:0 0 10px var(--verde)}
+.ingresso .nome{flex:1;font-weight:600}
+.ingresso .val{font:700 13px var(--mono);color:var(--tenue)}
+.ingresso.on .val{color:#9ff5c3}
+.vuoto{color:var(--tenue);font-size:14px}
+.avvii{display:grid;gap:10px}
+.btnAvvio{width:100%;min-height:72px;border:0;border-radius:12px;background:var(--verde);color:#062614;font-size:22px;font-weight:800;letter-spacing:.06em}
+.btnAvvio.attivo{background:var(--ambra);color:#2b1700}
+.btnAvvio:disabled{background:#2a3138;color:#66727d;cursor:not-allowed}
+.btnAvvio small{display:block;font-size:13px;font-weight:600;letter-spacing:0}
+.nota{margin:8px 0 0;color:var(--tenue);font-size:13px}
+.riga{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.riga h2{margin:0}
+.interruttore{position:relative;display:inline-block;width:76px;height:42px;flex:none}
+.interruttore input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1}
+.interruttore span{position:absolute;inset:0;border-radius:42px;background:#39434d;transition:background .15s}
+.interruttore span::after{content:"";position:absolute;top:4px;left:4px;width:34px;height:34px;border-radius:50%;background:#dfe5ea;transition:transform .15s}
+.interruttore input:checked+span{background:var(--giallo)}
+.interruttore input:checked+span::after{transform:translateX(34px)}
+.interruttore input:disabled+span{opacity:.4}
+.interruttore input:focus-visible+span{outline:3px solid var(--blu);outline-offset:2px}
+.manNota{margin:10px 0 0;font-size:14px;color:var(--tenue)}
+.manNota.attivo{color:#ffe08a}
+.motori{display:grid;gap:12px;margin-top:12px}
+.motore{background:var(--carta2);border:1px solid var(--bordo);border-radius:12px;padding:12px}
+.motore.spento{opacity:.45}
+.motTesta{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.motNome{font:800 20px var(--mono);letter-spacing:.04em}
+.motPos{font:13px var(--mono);color:var(--tenue)}
+.motMoto{margin-left:auto;font-size:12px;font-weight:700;padding:3px 8px;border-radius:20px;background:#39434d;color:var(--tenue)}
+.motMoto.si{background:var(--giallo);color:#2b2200}
+.preset{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.preset button{min-height:44px;border-radius:10px;border:1px solid var(--bordo);background:var(--carta);font-weight:700}
+.preset button.sel{background:var(--giallo);border-color:var(--giallo);color:#2b2200}
+.cursore{display:flex;align-items:center;gap:10px;margin:10px 0 12px}
+.cursore input{flex:1;accent-color:var(--giallo);height:32px}
+.cursore output{font:700 14px var(--mono);min-width:96px;text-align:right}
+.jog{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.jogBtn{min-height:112px;border-radius:14px;border:2px solid #4a5560;background:#2c353e;font-size:20px;font-weight:800;letter-spacing:.04em;
+  touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.jogBtn .freccia{display:block;font-size:34px;line-height:1}
+.jogBtn.premuto{background:var(--giallo);border-color:#fff3c2;color:#2b2200;transform:scale(.98)}
+.jogBtn.attivo{border-color:var(--giallo)}
+.jogBtn:disabled{color:#5e6a75;border-color:#353e47;cursor:not-allowed}
+.barraStop{position:fixed;left:0;right:0;bottom:0;z-index:6;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#0d1012 30%)}
+.stop{display:block;width:100%;max-width:1120px;margin:0 auto;min-height:72px;border:3px solid #ff9a9c;border-radius:14px;background:var(--rosso);color:#fff;font-size:30px;font-weight:900;letter-spacing:.2em;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.stop small{display:block;font-size:12px;font-weight:600;letter-spacing:.02em;opacity:.9}
+.stop:active{background:var(--rosso-scuro)}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(98px + env(safe-area-inset-bottom));z-index:7;max-width:560px;margin:0 auto;padding:12px 14px;border-radius:12px;background:#f4f6f8;color:#14181c;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.piede{max-width:1120px;margin:0 auto;padding:0 16px 8px;color:#66727d;font:12px var(--mono)}
+</style>
+</head>
+<body>
+<header class="barra">
+  <div><div class="rete" id="rete">Nicchie</div><div class="titolo" id="titolo">Collegamento alla scheda...</div></div>
+  <div class="conn" id="conn"><span class="pallino"></span><span id="connTesto">in attesa</span></div>
+</header>
+
+<div class="blocco" id="blocco" role="alert" hidden>
+  <strong>BLOCCO</strong>
+  <span>Un finecorsa non e' arrivato in tempo. AUTO e AVVIO sono disattivati.
+  Si sblocca solo riaccendendo la scheda con il selettore su MANUALE.
+  Il manuale da pagina resta usabile per liberare la meccanica.</span>
+</div>
+<div class="avviso" id="avviso" hidden></div>
+
+<main>
+  <section class="colonna">
+    <div class="card">
+      <h2>Stato</h2>
+      <div class="voci">
+        <div class="voce"><span class="etichetta">Selettore</span><span class="valore" id="sel">-</span></div>
+        <div class="voce"><span class="etichetta">Macchina</span><span class="valore" id="stato">-</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Finecorsa</h2>
+      <ul id="fc"></ul>
+    </div>
+    <div class="card" id="cardSpie" hidden>
+      <h2>Segnali</h2>
+      <ul id="spie"></ul>
+    </div>
+  </section>
+
+  <section class="colonna">
+    <div class="card">
+      <h2>Avvio</h2>
+      <div class="avvii" id="avvii"></div>
+      <p class="nota">Fa la stessa cosa dell'avvio esterno (selettore su REMOTE). Resta attivo finche' premi FERMA o STOP.</p>
+    </div>
+    <div class="card" id="cardMan">
+      <div class="riga">
+        <h2><label for="man">Manuale da pagina</label></h2>
+        <label class="interruttore"><input type="checkbox" id="man" role="switch" aria-label="Manuale da pagina"><span></span></label>
+      </div>
+      <p class="manNota" id="manNota">Spento.</p>
+      <div class="motori" id="motori"></div>
+    </div>
+  </section>
+</main>
+<div class="piede" id="piede"></div>
+
+<div class="barraStop">
+  <button class="stop" id="stop" type="button">STOP<small>ferma subito motori e AVVIO dati dalla pagina</small></button>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var M = null;            // descrizione della macchina (/macchina)
+  var S = null;            // ultimo stato (/stato)
+  var ultimaRisposta = 0;
+  var statoInVolo = false;
+  var jogInVolo = false;
+  var presa = null;        // { m, d, btn } pulsante tenuto premuto
+  var timerPresa = null;
+  var vel = [];            // velocita' scelta per ogni motore
+  var timerToast = null;
+
+  function chiama(metodo, url) {
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var t = setTimeout(function () { if (ctrl) ctrl.abort(); }, 1500);
+    return fetch(url, { method: metodo, cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        clearTimeout(t);
+        ultimaRisposta = Date.now();
+        if (j && j.sel !== undefined) aggiorna(j);
+        if (j && j.errore) avvisa(j.errore);
+        return j;
+      }, function (e) { clearTimeout(t); throw e; });
+  }
+
+  function avvisa(testo) {
+    var el = $('toast');
+    el.textContent = testo;
+    el.hidden = false;
+    clearTimeout(timerToast);
+    timerToast = setTimeout(function () { el.hidden = true; }, 3500);
+  }
+
+  function el(tag, cls, testo) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (testo !== undefined) e.textContent = testo;
+    return e;
+  }
+
+  function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+
+  // ---------- costruzione della pagina dalla descrizione ----------
+  function costruisci() {
+    $('rete').textContent = M.rete;
+    $('titolo').textContent = M.titolo;
+    document.title = M.rete + ' - comandi';
+    $('piede').textContent = 'Rete ' + M.rete + '  -  indirizzo 192.168.4.1';
+
+    var fc = $('fc');
+    fc.innerHTML = '';
+    if (!M.fc.length) fc.appendChild(el('li', 'vuoto', 'Questa macchina non ha finecorsa.'));
+    M.fc.forEach(function (nome, i) {
+      var li = el('li', 'ingresso');
+      li.id = 'fc' + i;
+      li.appendChild(el('span', 'led'));
+      li.appendChild(el('span', 'nome', nome));
+      li.appendChild(el('span', 'val', '-'));
+      fc.appendChild(li);
+    });
+
+    $('cardSpie').hidden = !M.spie.length;
+    var sp = $('spie');
+    sp.innerHTML = '';
+    M.spie.forEach(function (nome, i) {
+      var li = el('li', 'ingresso');
+      li.id = 'spia' + i;
+      li.appendChild(el('span', 'led'));
+      li.appendChild(el('span', 'nome', nome));
+      li.appendChild(el('span', 'val', '-'));
+      sp.appendChild(li);
+    });
+
+    var av = $('avvii');
+    av.innerHTML = '';
+    M.avvii.forEach(function (nome, i) {
+      var b = el('button', 'btnAvvio');
+      b.type = 'button';
+      b.id = 'avvio' + i;
+      b.addEventListener('click', function () {
+        var acceso = S && S.avvio[i];
+        chiama('POST', '/avvio?c=' + i + '&on=' + (acceso ? 0 : 1)).catch(function () { avvisa('La scheda non risponde'); });
+      });
+      av.appendChild(b);
+    });
+
+    $('cardMan').hidden = !M.motori.length;
+    var mot = $('motori');
+    mot.innerHTML = '';
+    M.motori.forEach(function (m, i) {
+      vel[i] = m.medio;
+      var box = el('div', 'motore');
+      box.id = 'mot' + i;
+      var testa = el('div', 'motTesta');
+      testa.appendChild(el('span', 'motNome', m.nome));
+      var pos = el('span', 'motPos', 'pos -');
+      testa.appendChild(pos);
+      testa.appendChild(el('span', 'motMoto', 'fermo'));
+      box.appendChild(testa);
+
+      var pre = el('div', 'preset');
+      [['lento', 'Lento'], ['medio', 'Medio'], ['veloce', 'Veloce']].forEach(function (p) {
+        var b = el('button', p[0] === 'medio' ? 'sel' : '', p[1]);
+        b.type = 'button';
+        b.dataset.v = m[p[0]];
+        b.addEventListener('click', function () { impostaVel(i, m[p[0]]); });
+        pre.appendChild(b);
+      });
+      box.appendChild(pre);
+
+      var cur = el('div', 'cursore');
+      var r = document.createElement('input');
+      r.type = 'range';
+      r.min = Math.max(1, Math.round(m.lento / 5));
+      r.max = m.veloce;
+      r.step = Math.max(1, Math.round((m.veloce - r.min) / 200));
+      r.value = m.medio;
+      r.setAttribute('aria-label', 'Velocita ' + m.nome);
+      var out = el('output', '', fmt(m.medio) + ' passi/s');
+      r.addEventListener('input', function () { impostaVel(i, Number(r.value)); });
+      cur.appendChild(r);
+      cur.appendChild(out);
+      box.appendChild(cur);
+
+      var jog = el('div', 'jog');
+      [[-1, '\u25C0', 'INDIETRO'], [1, '\u25B6', 'AVANTI']].forEach(function (d) {
+        var b = el('button', 'jogBtn');
+        b.type = 'button';
+        b.dataset.d = d[0];
+        var f = el('span', 'freccia', d[1]);
+        b.appendChild(f);
+        b.appendChild(document.createTextNode(d[2]));
+        b.addEventListener('pointerdown', function (ev) { premi(i, d[0], b, ev); });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (n) {
+          b.addEventListener(n, function () { if (presa && presa.btn === b) rilascia(); });
+        });
+        b.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+        jog.appendChild(b);
+      });
+      box.appendChild(jog);
+      mot.appendChild(box);
+    });
+  }
+
+  function impostaVel(i, v) {
+    var m = M.motori[i];
+    v = Math.max(1, Math.min(m.veloce, Math.round(v)));
+    vel[i] = v;
+    var box = $('mot' + i);
+    box.querySelector('input[type=range]').value = v;
+    box.querySelector('output').textContent = fmt(v) + ' passi/s';
+    box.querySelectorAll('.preset button').forEach(function (b) {
+      b.classList.toggle('sel', Number(b.dataset.v) === v);
+    });
+  }
+
+  // ---------- jog a uomo morto ----------
+  function puoJog() { return !!(S && S.cmd && S.man && Date.now() - ultimaRisposta < 2000); }
+
+  function premi(i, d, btn, ev) {
+    ev.preventDefault();
+    if (presa) return;                       // un solo pulsante alla volta
+    if (!puoJog()) {
+      avvisa(S && !S.cmd ? 'Comandi disattivati: selettore non su AUTO' : 'Accendi prima il MANUALE');
+      return;
+    }
+    presa = { m: i, d: d, btn: btn };
+    btn.classList.add('premuto');
+    if (navigator.vibrate) navigator.vibrate(15);
+    inviaJog();
+    timerPresa = setInterval(inviaJog, M.jogMs || 150);
+  }
+
+  function inviaJog() {
+    if (!presa || jogInVolo) return;
+    jogInVolo = true;
+    chiama('POST', '/jog?m=' + presa.m + '&d=' + presa.d + '&v=' + vel[presa.m])
+      .catch(function () {})
+      .then(function () { jogInVolo = false; });
+  }
+
+  function rilascia() {
+    if (!presa) return;
+    var m = presa.m;
+    presa.btn.classList.remove('premuto');
+    clearInterval(timerPresa);
+    presa = null;
+    chiama('POST', '/jog?m=' + m + '&d=0&v=' + vel[m]).catch(function () {});
+  }
+
+  window.addEventListener('blur', rilascia);
+  window.addEventListener('pagehide', rilascia);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) rilascia(); });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') ferma(); });
+
+  function ferma() {
+    rilascia();
+    chiama('POST', '/stop').catch(function () { avvisa('La scheda non risponde'); });
+  }
+  $('stop').addEventListener('click', ferma);
+
+  $('man').addEventListener('change', function () {
+    var vuole = $('man').checked;
+    $('man').checked = !!(S && S.man);       // si aggiorna con la risposta della scheda
+    if (!vuole) rilascia();
+    chiama('POST', '/manuale?on=' + (vuole ? 1 : 0)).catch(function () { avvisa('La scheda non risponde'); });
+  });
+
+  // ---------- aggiornamento dallo stato ----------
+  var NOMI_SEL = { AUTO: 'AUTO', MAN: 'MANUALE (quadro)', REMOTE: 'REMOTE / avvio esterno' };
+
+  function aggiorna(j) {
+    S = j;
+    if (!M) return;
+    var sel = $('sel');
+    sel.textContent = M.selettore ? NOMI_SEL[j.sel] : (j.sel === 'REMOTE' ? 'Avvio esterno attivo' : 'Nessun selettore (AUTO)');
+    sel.className = 'valore ' + j.sel.toLowerCase();
+    $('stato').textContent = j.stato;
+    $('blocco').hidden = !j.blocco;
+
+    var avv = $('avviso');
+    if (!j.cmd) {
+      avv.hidden = false;
+      avv.textContent = j.sel === 'MAN'
+        ? 'Solo lettura: il selettore del quadro e\' su MANUALE. Portalo su AUTO per comandare dalla pagina.'
+        : 'Solo lettura: c\'e\' un avvio esterno attivo (REMOTE). La pagina torna a comandare quando l\'avvio esterno si spegne.';
+    } else avv.hidden = true;
+
+    M.fc.forEach(function (n, i) {
+      var li = $('fc' + i), on = !!j.fc[i];
+      li.classList.toggle('on', on);
+      li.querySelector('.val').textContent = on ? 'PREMUTO' : 'libero';
+    });
+    M.spie.forEach(function (n, i) {
+      var li = $('spia' + i), on = !!j.spie[i];
+      li.classList.toggle('on', on);
+      li.querySelector('.val').textContent = on ? 'ACCESO' : 'spento';
+    });
+    M.avvii.forEach(function (nome, i) {
+      var b = $('avvio' + i), acceso = !!j.avvio[i];
+      b.classList.toggle('attivo', acceso);
+      b.disabled = !acceso && (!j.cmd || j.blocco || j.man);
+      b.innerHTML = '';
+      b.appendChild(document.createTextNode((acceso ? 'FERMA ' : 'AVVIO ') + nome));
+      var perche = acceso ? 'avviato dalla pagina' : (j.blocco ? 'non disponibile: BLOCCO' : (j.man ? 'non disponibile in manuale' : (j.est[i] ? 'avvio esterno attivo' : '')));
+      if (perche) b.appendChild(el('small', '', perche));
+    });
+
+    var man = $('man');
+    man.checked = !!j.man;
+    man.disabled = !j.cmd && !j.man;
+    var nota = $('manNota');
+    nota.classList.toggle('attivo', !!j.man);
+    if (j.man) {
+      var mm = Math.floor(j.manResta / 60), ss = ('0' + (j.manResta % 60)).slice(-2);
+      nota.textContent = 'ACCESO - i finecorsa sono ignorati. Tieni premuto per muovere. Si spegne da solo tra ' + mm + ':' + ss + ' senza comandi.';
+    } else {
+      nota.textContent = j.cmd ? 'Spento. Accendilo per muovere i motori (la macchina esce dal ciclo).' : 'Non disponibile: selettore non su AUTO.';
+    }
+    if (presa && !j.man) rilascia();
+
+    var ok = puoJog();
+    M.motori.forEach(function (m, i) {
+      var box = $('mot' + i), mj = j.mot[i] || {};
+      box.classList.toggle('spento', !ok);
+      box.querySelector('.motPos').textContent = 'pos ' + fmt(mj.p);
+      var mo = box.querySelector('.motMoto');
+      mo.textContent = mj.r ? 'in moto' : 'fermo';
+      mo.classList.toggle('si', !!mj.r);
+      box.querySelectorAll('.jogBtn').forEach(function (b) {
+        b.disabled = !ok && !(presa && presa.btn === b);
+        b.classList.toggle('attivo', mj.d !== 0 && Number(b.dataset.d) === mj.d);
+      });
+    });
+  }
+
+  function controllaCollegamento() {
+    var c = $('conn'), viva = Date.now() - ultimaRisposta < 2000;
+    c.className = 'conn ' + (viva ? 'ok' : 'ko');
+    $('connTesto').textContent = viva ? 'collegata' : 'non risponde';
+    if (!viva && presa) rilascia();
+  }
+
+  function caricaMacchina() {
+    var riprova = function () { setTimeout(caricaMacchina, 1000); };
+    try {
+      fetch('/macchina', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { M = j; costruisci(); if (S) aggiorna(S); })
+        .catch(riprova);
+    } catch (e) { riprova(); }
+  }
+
+  setInterval(function () {
+    if (!M || statoInVolo || presa) return;  // durante il jog lo stato arriva con le risposte del jog
+    statoInVolo = true;
+    chiama('GET', '/stato').catch(function () {}).then(function () { statoInVolo = false; });
+  }, 300);
+  setInterval(controllaCollegamento, 500);
+  caricaMacchina();
+})();
+</script>
+</body>
+</html>
+)PAGINA";
